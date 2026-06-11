@@ -2,28 +2,28 @@ import { t } from '@/core/i18n';
 import type { ShotEvent } from '@/core/collisions';
 
 /**
- * HUD overlay (HTML/CSS) — se monta sobre el canvas.
- * 1.6: hint de fase + mensaje de resultado.
- * 1.7 añade la grilla de contacto; 1.8 la barra de potencia y el timing.
- * Todos los textos pasan por `t()` (prohibido hardcodear, CLAUDE.md).
+ * HUD overlay (HTML/CSS) sobre el canvas.
+ * 1.6: hint + resultado · 1.7: grilla de contacto · 1.8: potencia + timing.
+ * Todos los textos pasan por `t()` (CLAUDE.md).
  */
 export class Hud {
   private root: HTMLElement;
   private hintEl: HTMLElement;
   private messageEl: HTMLElement;
+  readonly contact: ContactPad;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.hintEl = el('div', 'hud-hint');
     this.messageEl = el('div', 'hud-message');
-    this.root.append(this.hintEl, this.messageEl);
+    this.contact = new ContactPad();
+    this.root.append(this.hintEl, this.messageEl, this.contact.root);
   }
 
   setHint(text: string): void {
     this.hintEl.textContent = text;
   }
 
-  /** Mensaje grande de resultado (o null para ocultarlo). */
   setResult(event: ShotEvent | null): void {
     if (!event) {
       this.messageEl.classList.remove('show');
@@ -33,6 +33,63 @@ export class Hud {
     this.messageEl.textContent = t(resultKey(event));
     this.messageEl.classList.toggle('is-goal', event === 'GOAL');
     this.messageEl.classList.add('show');
+  }
+}
+
+/**
+ * Grilla de contacto (1.7). Un balón grande en HUD con grilla 3×3; el
+ * indicador define el punto de golpeo: X = curva izq/der, Y = elevación/raso.
+ * Pointer-events activos solo en el pad.
+ */
+export class ContactPad {
+  readonly root: HTMLElement;
+  private dot: HTMLElement;
+  private value = { x: 0, y: 0 };
+  /** Callback al mover el contacto (normalizado [-1,1], y+ = arriba). */
+  onChange?: (x: number, y: number) => void;
+
+  constructor() {
+    this.root = el('div', 'contact-pad');
+    const ball = el('div', 'contact-ball');
+    // Líneas de la grilla 3×3.
+    for (const cls of ['gl gv1', 'gl gv2', 'gl gh1', 'gl gh2']) {
+      ball.append(el('div', cls));
+    }
+    this.dot = el('div', 'contact-dot');
+    ball.append(this.dot);
+    this.root.append(ball);
+    this.bind(ball);
+    this.setValue(0, 0);
+  }
+
+  setVisible(v: boolean): void {
+    this.root.classList.toggle('show', v);
+  }
+
+  reset(): void {
+    this.setValue(0, 0);
+  }
+
+  private bind(ball: HTMLElement): void {
+    const update = (e: PointerEvent): void => {
+      const r = ball.getBoundingClientRect();
+      const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+      const ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
+      this.setValue(nx, ny);
+      this.onChange?.(this.value.x, this.value.y);
+    };
+    ball.addEventListener('pointermove', (e) => {
+      if (this.root.classList.contains('show')) update(e);
+    });
+    ball.addEventListener('pointerdown', update);
+  }
+
+  private setValue(x: number, y: number): void {
+    this.value.x = clamp(x, -1, 1);
+    this.value.y = clamp(y, -1, 1);
+    // Posición del punto (y invertida para CSS).
+    this.dot.style.left = `${((this.value.x + 1) / 2) * 100}%`;
+    this.dot.style.top = `${((1 - this.value.y) / 2) * 100}%`;
   }
 }
 
@@ -51,6 +108,10 @@ function resultKey(event: ShotEvent): string {
     case 'OUT':
       return 'result.out';
   }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
 }
 
 function el(tag: string, className: string): HTMLElement {

@@ -2,23 +2,23 @@ import * as THREE from 'three';
 import { AimVisuals } from '@/render/aim';
 import { Flight } from '@/game/flight';
 import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
+import { ShotMachine, type ShotPhase } from '@/game/shot-machine';
 import { DEFAULT_DRAG_CD, type BallState } from '@/core/ballistics';
 import { speedForPower } from '@/core/physics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
 
 /**
- * Controlador de juego — orquesta apuntado, disparo y vuelo sobre la escena.
+ * Controlador de juego — orquesta la `ShotMachine` con la escena, el input y
+ * el HUD.
  *
- * Estado de la tarea: 1.6 (apuntado). El flujo todavía es simplificado
- * (apuntar → disparar), con un lanzamiento TEMPORAL recto. La secuencia
- * completa (contacto 1.7, potencia/timing 1.8 vía ShotMachine) y el mapeo
- * real a velocidad+spin (1.9) se integran en las siguientes tareas.
+ * Estado: 1.6 apuntado · 1.7 contacto. Flujo completo de la FSM cableado
+ * (AIMING→CONTACT→POWERING→TIMING→FLIGHT→RESULT). El HUD de potencia/timing
+ * llega en 1.8 y el mapeo real input→velocidad+spin en 1.9 (hoy: solver TEMP
+ * que sólo usa mira + potencia).
  */
 
-type LocalPhase = 'AIM' | 'FLIGHT' | 'RESULT';
-
-const AIM_X_LIMIT = 6; // se puede apuntar afuera del palo (para comba/trivela)
+const AIM_X_LIMIT = 6; // se puede apuntar afuera del palo (comba/trivela)
 const AIM_Y_MIN = 0.15;
 const AIM_Y_MAX = 3.0;
 const KEY_AIM_STEP = 0.12;
@@ -28,18 +28,18 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 export class Game {
+  private machine = new ShotMachine();
   private aimVisuals: AimVisuals;
   private hud: Hud;
   private kicker: Kicker = DEFAULT_KICKER;
 
   private ballStart: THREE.Vector3;
-  private aim = { x: 0, y: 1.1 };
-  private phase: LocalPhase = 'AIM';
   private flight: Flight | null = null;
 
   private raycaster = new THREE.Raycaster();
   private goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private clock = new THREE.Clock();
+  private spacePressed = false;
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -52,8 +52,10 @@ export class Game {
     this.ballStart = ball.position.clone();
     this.aimVisuals = new AimVisuals(scene);
     this.hud = new Hud(hudRoot);
+    this.hud.contact.onChange = (x, y) => this.machine.setContact(x, y);
+    this.machine.onPhaseChange = (phase) => this.onPhase(phase);
     this.bindInput();
-    this.enterAim();
+    this.onPhase('AIMING');
   }
 
   start(): void {
@@ -69,13 +71,22 @@ export class Game {
   }
 
   private update(dt: number): void {
-    if (this.phase === 'AIM') {
-      this.aimVisuals.update(this.ballStart, this.aim, this.kicker.line);
-    } else if (this.phase === 'FLIGHT' && this.flight) {
-      this.flight.step(dt);
-      this.ball.position.copy(this.flight.position);
-      this.spinBall(dt);
-      if (this.flight.done) this.enterResult();
+    this.machine.update(dt * 1000);
+
+    switch (this.machine.phase) {
+      case 'AIMING':
+        this.aimVisuals.update(this.ballStart, this.machine.aim, this.kicker.line);
+        break;
+      case 'FLIGHT':
+        if (this.flight) {
+          this.flight.step(dt);
+          this.ball.position.copy(this.flight.position);
+          this.spinBall(dt);
+          if (this.flight.done) this.machine.resolveFlight();
+        }
+        break;
+      default:
+        break;
     }
   }
 
@@ -88,49 +99,69 @@ export class Game {
     }
   }
 
-  // --- Fases ---------------------------------------------------------------
+  // --- Reacción a cambios de fase -----------------------------------------
 
-  private enterAim(): void {
-    this.phase = 'AIM';
-    this.flight = null;
-    this.ball.position.copy(this.ballStart);
-    this.aimVisuals.setVisible(true);
-    this.hud.setResult(null);
-    this.hud.setHint(t('hud.hintAim'));
+  private onPhase(phase: ShotPhase): void {
+    switch (phase) {
+      case 'AIMING':
+        this.flight = null;
+        this.ball.position.copy(this.ballStart);
+        this.aimVisuals.setVisible(true);
+        this.hud.contact.setVisible(false);
+        this.hud.setResult(null);
+        this.hud.setHint(t('hud.hintAim'));
+        break;
+      case 'CONTACT':
+        this.aimVisuals.setVisible(false);
+        this.hud.contact.reset();
+        this.hud.contact.setVisible(true);
+        this.hud.setHint(t('hud.hintContact'));
+        break;
+      case 'POWERING':
+        this.hud.contact.setVisible(false);
+        this.hud.setHint(t('hud.hintPower'));
+        break;
+      case 'TIMING':
+        this.hud.setHint(t('hud.hintTiming'));
+        break;
+      case 'FLIGHT':
+        this.launch();
+        this.hud.setHint('');
+        break;
+      case 'RESULT':
+        this.hud.setResult(this.flight?.event ?? 'OUT');
+        this.hud.setHint(t('hud.tapToContinue'));
+        break;
+    }
   }
 
-  private enterResult(): void {
-    this.phase = 'RESULT';
-    this.aimVisuals.setVisible(false);
-    this.hud.setResult(this.flight?.event ?? 'OUT');
-    this.hud.setHint(t('hud.tapToContinue'));
-  }
-
-  /** TEMP (1.6): lanzamiento recto a la mira con potencia/sin spin fijos.
-   *  Se reemplaza por el solver (1.9) que mapea contacto+potencia+timing. */
-  private launchTemp(): void {
-    const target = new THREE.Vector3(this.aim.x, this.aim.y, 0);
+  /** TEMP (hasta 1.9): mira + potencia, sin spin. El mapeo real de
+   *  contacto/timing a velocidad+spin lo implementa el solver en 1.9. */
+  private launch(): void {
+    const input = this.machine.getInput();
+    const target = new THREE.Vector3(input.aim.x, input.aim.y, 0);
     const dir = target.clone().sub(this.ballStart).normalize();
     const initial: BallState = {
       pos: this.ballStart.clone(),
-      vel: dir.multiplyScalar(speedForPower(3)),
+      vel: dir.multiplyScalar(speedForPower(input.power)),
       spin: new THREE.Vector3(0, 0, 0),
     };
     this.flight = new Flight(initial, { dragCd: DEFAULT_DRAG_CD });
-    this.phase = 'FLIGHT';
-    this.aimVisuals.setVisible(false);
-    this.hud.setHint('');
   }
 
-  // --- Acciones de input ---------------------------------------------------
+  // --- Input ---------------------------------------------------------------
 
-  private onShoot(): void {
-    if (this.phase === 'AIM') this.launchTemp();
-    else if (this.phase === 'RESULT') this.enterAim();
+  private press(): void {
+    if (this.machine.phase === 'RESULT') this.machine.reset();
+    else this.machine.press();
+  }
+
+  private release(): void {
+    this.machine.release();
   }
 
   private aimFromPointer(clientX: number, clientY: number): void {
-    if (this.phase !== 'AIM') return;
+    if (this.machine.phase !== 'AIMING') return;
     const ndc = new THREE.Vector2(
       (clientX / window.innerWidth) * 2 - 1,
       -((clientY / window.innerHeight) * 2 - 1),
@@ -138,43 +169,63 @@ export class Game {
     this.raycaster.setFromCamera(ndc, this.camera);
     const hit = new THREE.Vector3();
     if (this.raycaster.ray.intersectPlane(this.goalPlane, hit)) {
-      this.aim.x = clamp(hit.x, -AIM_X_LIMIT, AIM_X_LIMIT);
-      this.aim.y = clamp(hit.y, AIM_Y_MIN, AIM_Y_MAX);
+      this.machine.setAim(
+        clamp(hit.x, -AIM_X_LIMIT, AIM_X_LIMIT),
+        clamp(hit.y, AIM_Y_MIN, AIM_Y_MAX),
+      );
     }
   }
 
-  // --- Input binding -------------------------------------------------------
+  private nudgeAim(dx: number, dy: number): void {
+    if (this.machine.phase !== 'AIMING') return;
+    const a = this.machine.aim;
+    this.machine.setAim(
+      clamp(a.x + dx, -AIM_X_LIMIT, AIM_X_LIMIT),
+      clamp(a.y + dy, AIM_Y_MIN, AIM_Y_MAX),
+    );
+  }
 
   private bindInput(): void {
     this.canvas.addEventListener('pointermove', (e) =>
       this.aimFromPointer(e.clientX, e.clientY),
     );
-    this.canvas.addEventListener('pointerdown', (e) => {
+    // pointerdown/up en window para que también funcione sobre el HUD.
+    window.addEventListener('pointerdown', (e) => {
       this.aimFromPointer(e.clientX, e.clientY);
-      this.onShoot();
+      this.press();
     });
+    window.addEventListener('pointerup', () => this.release());
 
     window.addEventListener('keydown', (e) => {
       switch (e.code) {
         case 'Space':
         case 'Enter':
           e.preventDefault();
-          this.onShoot();
+          if (!this.spacePressed) {
+            this.spacePressed = true;
+            this.press();
+          }
           break;
         case 'ArrowLeft':
-          this.aim.x = clamp(this.aim.x - KEY_AIM_STEP, -AIM_X_LIMIT, AIM_X_LIMIT);
+          this.nudgeAim(-KEY_AIM_STEP, 0);
           break;
         case 'ArrowRight':
-          this.aim.x = clamp(this.aim.x + KEY_AIM_STEP, -AIM_X_LIMIT, AIM_X_LIMIT);
+          this.nudgeAim(KEY_AIM_STEP, 0);
           break;
         case 'ArrowUp':
-          this.aim.y = clamp(this.aim.y + KEY_AIM_STEP, AIM_Y_MIN, AIM_Y_MAX);
+          this.nudgeAim(0, KEY_AIM_STEP);
           break;
         case 'ArrowDown':
-          this.aim.y = clamp(this.aim.y - KEY_AIM_STEP, AIM_Y_MIN, AIM_Y_MAX);
+          this.nudgeAim(0, -KEY_AIM_STEP);
           break;
         default:
           break;
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        this.spacePressed = false;
+        this.release();
       }
     });
   }
