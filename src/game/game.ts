@@ -7,6 +7,7 @@ import { DEFAULT_DRAG_CD, type BallState } from '@/core/ballistics';
 import { speedForPower } from '@/core/physics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
+import { playKick, playGreen } from '@/core/audio';
 
 /**
  * Controlador de juego — orquesta la `ShotMachine` con la escena, el input y
@@ -77,6 +78,13 @@ export class Game {
       case 'AIMING':
         this.aimVisuals.update(this.ballStart, this.machine.aim, this.kicker.line);
         break;
+      case 'POWERING':
+        this.hud.power.setValue(this.machine.power);
+        break;
+      case 'TIMING':
+        this.hud.power.setValue(this.machine.power);
+        this.hud.timing.setProgress(this.machine.timingProgress);
+        break;
       case 'FLIGHT':
         if (this.flight) {
           this.flight.step(dt);
@@ -108,6 +116,8 @@ export class Game {
         this.ball.position.copy(this.ballStart);
         this.aimVisuals.setVisible(true);
         this.hud.contact.setVisible(false);
+        this.hud.power.setVisible(false);
+        this.hud.timing.setVisible(false);
         this.hud.setResult(null);
         this.hud.setHint(t('hud.hintAim'));
         break;
@@ -119,16 +129,24 @@ export class Game {
         break;
       case 'POWERING':
         this.hud.contact.setVisible(false);
+        this.hud.power.setVisible(true);
+        this.hud.timing.setVisible(false);
         this.hud.setHint(t('hud.hintPower'));
         break;
       case 'TIMING':
+        this.hud.timing.setVisible(true);
         this.hud.setHint(t('hud.hintTiming'));
         break;
       case 'FLIGHT':
         this.launch();
+        this.hud.power.setVisible(false);
+        this.hud.timing.flash(this.machine.getInput().green);
         this.hud.setHint('');
+        playKick();
+        if (this.machine.getInput().green) playGreen();
         break;
       case 'RESULT':
+        this.hud.timing.setVisible(false);
         this.hud.setResult(this.flight?.event ?? 'OUT');
         this.hud.setHint(t('hud.tapToContinue'));
         break;
