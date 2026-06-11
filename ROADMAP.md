@@ -1,0 +1,90 @@
+# ROADMAP.md — DEAD BALL HERO
+
+## Visión de progresión
+
+El jugador empieza con ayudas máximas (línea de trayectoria larga, barrera quieta, arquero lento) y termina pateando como un pro: sin línea, con presión, viento y un solo intento. **La dificultad nunca viene de física injusta, sino de quitar ayudas y añadir presión.**
+
+Economía: estrellas (1–3 por nivel) desbloquean actos; monedas (por gol, bonus por verde y por ángulo) desbloquean pateadores, estadios y balones cosméticos.
+
+---
+
+## FASE 1 — MVP JUGABLE (objetivo de las primeras sesiones)
+
+**Alcance estricto:**
+- Escena Three.js: campo, arco reglamentario, barrera estática (cápsulas), arquero con reacción simple, pateador low-poly.
+- Input: mouse/teclado + táctil básico (arrastre = apuntar, botón en pantalla = potencia/timing). Gamepad API si hay tiempo.
+- Mecánica completa de UN tiro: apuntado con retícula + línea de ayuda, grilla de contacto simplificada (curva izq/der + arriba/abajo), barra de potencia 5 segmentos, timing verde.
+- Física Magnus calibrada con la receta de curva clásica (3 barras).
+- 5 niveles del Acto 1 en JSON. Un pateador: **Diego**.
+- HUD: marcador, intentos, mensaje de resultado, estrellas.
+- Guardado en localStorage.
+
+**Criterio de éxito:** la receta "apuntar al costado del palo + 3 barras + verde" mete gol consistentemente, y errar el timing se siente castigado pero justo.
+
+## FASE 2 — Los 6 tiros + roster
+
+- Grilla de contacto completa (trivela, knuckleball con flutter, caída, raso, debajo de barrera).
+- Barrera que salta (probabilística), arquero con niveles de reacción.
+- Pateadores: Roberto, David, Andrea, Juni — cada uno con stats, **firma visual** (carrera/pose reconocible, ver CLAUDE.md) y su capítulo con **Momento Legendario**.
+- Sistema de "escenografía de momento": kits de colores evocativos sin escudos, clima (lluvia/noche), texto narrativo del contexto.
+- Modo Práctica Libre con overlay de inputs ("modo fantasma").
+- Sticks virtuales con zona muerta configurable + vibración háptica.
+
+## FASE 3 — Carrera completa (50 niveles)
+
+- Actos 2, 3 y 4 (ver diseño abajo). Escenarios de presión con marcador, reloj y narrativa.
+- Pateadores restantes: Leo, Cris, Dinho, Sini. Jefe final: Rogério.
+- Animaciones de carrera diferenciadas por pateador (la firma visual EN movimiento: carrera larga de Roberto, postura ancha de Cris, pausa de Leo).
+- Viento (modo arcade), estadios temáticos, repetición de goles.
+- Audio completo: multitud reactiva, relator minimalista ("¡En el último minuto!").
+
+## FASE 4 — Pulido y distribución
+
+- Modo Minuto 93 arcade (rachas, leaderboard local).
+- **Localización completa a inglés (`en.json`)** para lanzamiento mundial; revisar que ningún texto quede fuera del sistema de locales.
+- PWA instalable (ícono, offline). Opcional: empaquetado Capacitor para tiendas.
+- Soporte completo de mando físico en PC con mapeo idéntico al referente de consola.
+- Balance final con telemetría local (tasa de gol por nivel objetivo: 60% acto 1, 35% acto 4).
+
+---
+
+## Diseño de los 4 actos (50 niveles)
+
+### ACTO 1 — "La Academia" (niveles 1–10) · Mentor: Diego
+Aprender la base sin presión. Línea de ayuda LARGA.
+1. Sin barrera ni arquero: meterla en el arco (enseña potencia).
+2. Sin barrera, arquero lento: esquinas (enseña apuntado).
+3. Timing verde obligatorio para la 3ª estrella.
+4. Primera barrera, frontal, 20 m: por arriba con curva suave.
+5. **Examen de Diego:** 3 goles en 5 intentos, 22 m frontal. → desbloquea Acto 2 y monedas.
+6–10. Ángulos laterales, distancias 18–28 m, arquero normal, blancos en el arco (dianas en los ángulos) para estrellas.
+
+### ACTO 2 — "La Gira" (niveles 11–25) · Mentores: David, Andrea, Roberto, Juni
+Cada mentor abre un mini-capítulo de 3 niveles: enseña SU tiro con receta guiada, lo exige sin guía, y cierra con su **Momento Legendario** (recreación de su tiro histórico: misma distancia, ángulo, minuto y marcador, ambientación genérica con su firma visual y colores evocativos). Línea de ayuda MEDIA.
+- 11–13 David: curva clásica al ángulo, palo lejano. Legendario: **"Minuto 93"** — 25 m, empate agónico para ir al Mundial. El nivel insignia del juego.
+- 14–16 Andrea: la caída — por arriba de la barrera y que baje antes del travesaño. Legendario: **"La maldita"** a 30 m.
+- 17–19 Roberto: trivela — apuntar AFUERA del palo y que vuelva. Legendario: **"La física rota del '97"**, 35 m frontales con comba imposible.
+- 20–22 Juni: knuckleball 30–38 m, el arquero "lee mal" el flutter. Legendario: **"La noche de los 35 metros"**.
+- 23–25 mixtos: el nivel dicta qué tiro usar (barrera que salta → raso por debajo; 38 m → knuckle).
+
+### ACTO 3 — "Minuto 93" (niveles 26–40) · Mentores: Leo, Dinho, Cris
+Presión narrativa: marcador en contra, reloj en 90'+, 1–2 intentos, multitud rugiendo. Línea de ayuda CORTA.
+- Escenarios tipo: "Final de copa, 92', vas 0–1, tiro al borde del área, UN intento."
+- "Clásico bajo lluvia, 89', empate, 2 intentos, barrera de 6 que salta."
+- Capítulo Leo: finesse al palo lejano. Legendario: **"El misil al ángulo"** — semifinal continental, 30 m sobre el arquero.
+- Capítulo Dinho: la barrera SIEMPRE salta — domina el raso por debajo. DOBLE Legendario: **"El globo de los 40 metros"** (el arquero está adelantado: hay que verlo y picarla por encima) y **"Por debajo de la barrera"**.
+- Capítulo Cris: 35+ m, solo knuckle entra. Legendario: **"El cohete del 2008"**.
+- Checkpoints cada 5 niveles; fallar el intento único = repetir desde checkpoint (tensión real).
+
+### ACTO 4 — "Leyenda" (niveles 41–50) · Jefe: Rogério
+SIN línea de ayuda (como un pro de verdad). Viento lateral visible con banderines.
+- 41–44: remixes extremos de los 6 tiros con viento. Incluye el Legendario de Sini: **"El triplete del '98"** — 3 tiros libres distintos (curva, potencia, raso) en un mismo nivel.
+- 45–47: "Ruleta": el juego sortea el tiro obligatorio.
+- 48–49: dianas pequeñas en los ángulos, un intento. Incluye el Legendario de Diego: **"El ángulo imposible"** — tiro indirecto dentro del área con la barrera encima.
+- 50. **JEFE: Rogério — "El centenario".** Duelo a 5 rondas: él ataja con reflejos máximos... y entre rondas PATEA él y tú defiendes la barrera eligiendo si salta o no (lectura de su animación). Ganas → título de Leyenda + Rogério jugable.
+
+### Sistema de estrellas (todas las pantallas)
+- ⭐ Gol · ⭐⭐ Gol con timing verde · ⭐⭐⭐ Condición especial del nivel (diana, tiro específico, sin usar línea).
+
+### Desbloqueables con monedas
+- Pateadores fuera de su acto, estadios ("El Coloso", "La Bombilla", "Teatro del Norte"), balones (clásico blanco, "tango", "brazuca-like" genéricos), celebraciones.
