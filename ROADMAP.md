@@ -4,7 +4,7 @@
 
 El jugador empieza con ayudas máximas (línea de trayectoria larga, barrera quieta, arquero lento) y termina pateando como un pro: sin línea, con presión, viento y un solo intento. **La dificultad nunca viene de física injusta, sino de quitar ayudas y añadir presión.**
 
-Economía: estrellas (1–3 por nivel) desbloquean actos; monedas (por gol, bonus por verde y por ángulo) desbloquean pateadores, estadios y balones cosméticos.
+Economía: estrellas (1–3 por nivel) desbloquean actos; monedas (por gol, bonus por potencia perfecta y por ángulo) desbloquean pateadores, estadios y balones cosméticos.
 
 ---
 
@@ -12,14 +12,14 @@ Economía: estrellas (1–3 por nivel) desbloquean actos; monedas (por gol, bonu
 
 **Alcance estricto:**
 - Escena Three.js: campo, arco reglamentario, barrera estática (cápsulas), arquero con reacción simple, pateador low-poly.
-- Input: mouse/teclado + táctil básico (arrastre = apuntar, botón en pantalla = potencia/timing). Gamepad API si hay tiempo.
-- Mecánica completa de UN tiro: apuntado con retícula + línea de ayuda, grilla de contacto simplificada (curva izq/der + arriba/abajo), barra de potencia 5 segmentos, timing verde.
+- Input: mouse/teclado + táctil básico (arrastre = apuntar, botón en pantalla = mantener-soltar potencia). Gamepad API si hay tiempo.
+- Mecánica completa de UN tiro: apuntado por azimut con línea de proyección desde el balón (sin retícula en el arco), selección de contacto con puntero sobre el balón y etiqueta de tipo de golpe, barra de potencia ÚNICA de 5 segmentos (mantener-soltar, sin doble toque).
 - Física Magnus calibrada con la receta de curva clásica (3 barras).
 - 5 niveles del Acto 1 en JSON. Un pateador: **Diego**.
 - HUD: marcador, intentos, mensaje de resultado, estrellas.
 - Guardado en localStorage.
 
-**Criterio de éxito:** la receta "apuntar al costado del palo + 3 barras + verde" mete gol consistentemente, y errar el timing se siente castigado pero justo.
+**Criterio de éxito:** la receta "alinear la línea al costado de la barrera + contacto de comba + soltar en 2.5-3 barras" mete gol consistentemente, y pasarse o quedarse corto de potencia castiga de forma justa y legible.
 
 ## FASE 2 — Los 6 tiros + roster
 
@@ -54,7 +54,7 @@ Economía: estrellas (1–3 por nivel) desbloquean actos; monedas (por gol, bonu
 Aprender la base sin presión. Línea de ayuda LARGA.
 1. Sin barrera ni arquero: meterla en el arco (enseña potencia).
 2. Sin barrera, arquero lento: esquinas (enseña apuntado).
-3. Timing verde obligatorio para la 3ª estrella.
+3. Potencia perfecta obligatoria para la 3ª estrella (soltar la barra en el punto exacto del tiro).
 4. Primera barrera, frontal, 20 m: por arriba con curva suave.
 5. **Examen de Diego:** 3 goles en 5 intentos, 22 m frontal. → desbloquea Acto 2 y monedas.
 6–10. Ángulos laterales, distancias 18–28 m, arquero normal, blancos en el arco (dianas en los ángulos) para estrellas.
@@ -84,7 +84,7 @@ SIN línea de ayuda (como un pro de verdad). Viento lateral visible con banderin
 - 50. **JEFE: Rogério — "El centenario".** Duelo a 5 rondas: él ataja con reflejos máximos... y entre rondas PATEA él y tú defiendes la barrera eligiendo si salta o no (lectura de su animación). Ganas → título de Leyenda + Rogério jugable.
 
 ### Sistema de estrellas (todas las pantallas)
-- ⭐ Gol · ⭐⭐ Gol con timing verde · ⭐⭐⭐ Condición especial del nivel (diana, tiro específico, sin usar línea).
+- ⭐ Gol · ⭐⭐ Gol con potencia perfecta · ⭐⭐⭐ Condición especial del nivel (diana, tiro específico, sin usar línea).
 
 ### Desbloqueables con monedas
 - Pateadores fuera de su acto, estadios ("El Coloso", "La Bombilla", "Teatro del Norte"), balones (clásico blanco, "tango", "brazuca-like" genéricos), celebraciones.

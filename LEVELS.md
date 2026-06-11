@@ -63,7 +63,7 @@ export interface LevelSpec {
 }
 
 export type StarCondition =
-  | { type: 'green_timing' }                       // gol con timing verde
+  | { type: 'perfect_power' }                      // gol soltando en "potencia perfecta" (±0.15 barras del centro óptimo del tiro)
   | { type: 'target'; corner: 'TL'|'TR'|'BL'|'BR'; radius: number }  // diana (m)
   | { type: 'no_aid_line' }                        // sin línea de ayuda
   | { type: 'kick'; kick: KickType }               // gol con tiro específico
@@ -87,7 +87,7 @@ export type StarCondition =
     "scenario": { "minute": 0, "scoreHome": 0, "scoreAway": 0, "playerIsHome": true, "weather": "clear", "crowdIntensity": 0 },
     "wall": null, "keeper": null,
     "aidLineOverride": 1.0,
-    "stars": { "two": { "type": "green_timing" }, "three": { "type": "all_attempts" } },
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "all_attempts" } },
     "rewardCoins": 50
   },
   {
@@ -111,7 +111,7 @@ export type StarCondition =
     "wall": null,
     "keeper": { "reactionMs": 320, "diveSpeed": 7.0 },
     "aidLineOverride": 0.8,
-    "stars": { "two": { "type": "green_timing" }, "three": { "type": "all_attempts" } },
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "all_attempts" } },
     "rewardCoins": 70
   },
   {
@@ -123,7 +123,7 @@ export type StarCondition =
     "wall": { "players": 4, "distance": 9.15, "jumpChance": 0 },
     "keeper": { "reactionMs": 320, "diveSpeed": 7.0 },
     "aidLineOverride": 0.8,
-    "stars": { "two": { "type": "green_timing" }, "three": { "type": "kick", "kick": "curva" } },
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "kick", "kick": "curva" } },
     "rewardCoins": 80
   },
   {
@@ -136,7 +136,7 @@ export type StarCondition =
     "keeper": { "reactionMs": 300, "diveSpeed": 7.2 },
     "forcedKicker": "diego",
     "aidLineOverride": 0.7,
-    "stars": { "two": { "type": "green_timing" }, "three": { "type": "target", "corner": "TR", "radius": 1.2 } },
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "target", "corner": "TR", "radius": 1.2 } },
     "rewardCoins": 150
   }
 ]
@@ -149,7 +149,7 @@ export type StarCondition =
   "levels": {
     "a1n01": { "name": "Primer contacto", "brief": "Cancha vacía. Solo tú, la pelota y el arco. Aprende la barra de potencia: ni suave que no llegue, ni fuerte que se vaya a las nubes." },
     "a1n02": { "name": "Las esquinas", "brief": "Llegó el arquero. Donde él no llega es donde tú apuntas: las esquinas son tu nuevo hogar." },
-    "a1n03": { "name": "El verde", "brief": "Diego te mira de brazos cruzados: 'La diferencia entre buenos y grandes es el timing'. Suelta y vuelve a presionar en la ventana verde." },
+    "a1n03": { "name": "La potencia justa", "brief": "Diego te mira de brazos cruzados: 'Cualquiera le pega fuerte. Los grandes saben CUANTO'. Suelta la barra en el punto exacto y mira como brilla." },
     "a1n04": { "name": "La barrera", "brief": "Cuatro gigantes entre tú y el gol. Apunta al costado del palo, dale tres barras y deja que la curva haga el resto." },
     "a1n05": { "name": "El examen de Diego", "brief": "Minuto 88, clásico de barrio empatado. Diego te entrega la pelota: 'Mostrame que aprendiste, pibe'. Tres goles y el Acto 2 es tuyo." }
   }

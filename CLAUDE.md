@@ -26,29 +26,26 @@
 - Audio: Web Audio API, sonidos cortos (golpe, red, palo, multitud) sintetizados o CC0.
 - **Idiomas (i18n): ESPAÑOL es el idioma base y por defecto.** Todos los textos del juego viven en `src/data/locales/es.json` (nunca hardcodeados en componentes). Estructura lista para `en.json` desde el día 1; inglés se completa en Fase 4 para lanzamiento mundial. Detección automática del idioma del navegador con fallback a español.
 
-## La mecánica core (fidelidad al simulador de consola)
+## La mecánica core (fidelidad al referente de consola, edición 26)
 
-Secuencia de un tiro libre, idéntica al referente:
+> IMPORTANTE: la edición 26 del referente ELIMINÓ el "timing verde" (doble toque). El tiro es: apuntar → elegir contacto → mantener y SOLTAR una única barra. La maestría está en la potencia justa y en alinear la línea de proyección. Nuestro juego replica ESO.
 
-1. **Apuntado (STICK-I / arrastre táctil):** una retícula/cámara detrás del pateador apunta al arco. Se muestra una **línea de trayectoria parcial** cuya longitud depende del nivel de "Dead Ball" del jugador (jugadores expertos ven más línea; es la mecánica real del referente y nuestra palanca de dificultad).
-2. **Grilla de contacto (STICK-D):** un balón grande en HUD con una grilla 3×3+. La posición del stick derecho sobre el balón define el tipo de golpe:
-   - Centro-arriba → **caída/topspin** (pica y baja)
-   - Lateral interior → **curva con empeine interno** (finesse)
-   - Esquina inferior opuesta al pie → **trivela** (curva exterior)
-   - Centro exacto + movimiento arriba-abajo → **knuckleball** (sin rotación, vuelo errático)
-   - Centro-abajo → **raso/driven**
-3. **Potencia (mantener DISPARO):** barra de 5 segmentos. Cada tipo de tiro tiene su rango óptimo (ver recetas).
-4. **Timing verde (soltar + re-presionar DISPARO en ventana):** ventana de timing perfecto que aumenta precisión y reduce error. Ventana verde de ±80 ms (ajustable por dificultad).
-5. **Vuelo del balón:** cámara sigue el balón (cámara "tele broadcast"). Repetición automática en goles con cámara alternativa.
+Secuencia de un tiro libre:
+
+1. **Apuntado (STICK-I / arrastre horizontal):** NO hay retícula sobre el arco. El stick izquierdo rota la dirección del tiro (azimut) y la cámara orbita detrás del pateador. Desde el balón sale una **línea de proyección** que muestra el tramo inicial de la trayectoria real (con la comba del contacto elegido incluida); su largo depende del stat LÍNEA del pateador. El gesto auténtico del referente: *alinear la línea por encima/al costado de la barrera*.
+2. **Selección de contacto (STICK-D / arrastre):** el selector vive **sobre el balón en el mundo 3D**, NO en un panel del HUD. Composición exacta (referencia: captura de la edición 26 aportada por el usuario, `docs/ref-contacto-fc26.png`): una **grilla romboidal verde semitransparente** (plano billboard inclinado, líneas finas) anclada al balón; un **punto rojo** que indica el punto de contacto y se mueve con el stick derecho o arrastre táctil; una **pequeña cruz/cursor** junto al punto; y abajo de la pantalla una **etiqueta en mayúsculas** con el tipo de golpe que cambia según la zona: "CHANFLE CON EL INTERIOR DEL PIE", "CHANFLE CON EL EXTERIOR DEL PIE", "PICADA", "RASO", "GOLPE NATURAL". La línea de proyección verde sale del balón y se actualiza en vivo con el contacto elegido. La barra de potencia es un elemento APARTE del HUD (abajo), nunca mezclada con el selector.
+3. **Potencia (mantener y SOLTAR DISPARO):** UNA sola barra de 5 segmentos. Al soltar, la potencia queda fijada, arranca la carrera del pateador (~0.5–0.8 s según su firma visual) y golpea automáticamente. **No hay segundo toque.** Cada tipo de tiro tiene su rango óptimo; soltar dentro de ±0.15 barras del centro óptimo = **"potencia perfecta"** (la barra brilla, leve feedback háptico) → dispersión cero. Fuera del rango, la dispersión crece gradualmente (aliviada por PRE).
+4. **Spin de refuerzo (opcional, STICK-D durante la carrera):** un gesto del stick derecho mientras el pateador corre acentúa la comba o la caída (~+20%). El gesto vertical abajo→arriba prepara el knuckle (Fase 2).
+5. **Vuelo del balón:** cámara sigue el balón (tele broadcast). Repetición automática en goles desde detrás del arco.
 
 ### Recetas canónicas (deben funcionar tal cual en nuestro juego)
 
 | Tiro | Receta | Rango ideal |
 |---|---|---|
-| Curva clásica | Apuntar al costado del palo, contacto lateral interior, **3 barras**, timing verde | 18–28 m |
-| Caída (la "maldita") | Apuntar al ángulo, contacto arriba-centro, 2.5–3 barras | 20–30 m |
-| Knuckleball | Apuntar levemente desviado, contacto centro con gesto vertical, 2.5–3 barras + verde | 28–40 m |
-| Trivela | Apuntar ~un balón AFUERA del palo, contacto esquina inferior opuesta, 2–3 barras | 18–30 m |
+| Curva clásica | Línea alineada al costado/encima de la barrera, contacto lateral interior, **soltar en 2.5–3 barras** | 18–28 m |
+| Caída (la "maldita") | Línea sobre la barrera, contacto arriba-centro, 2.5–3 barras | 20–30 m |
+| Knuckleball | Contacto centro + gesto vertical, 2.5–3 barras | 28–40 m |
+| Trivela | Línea ~un balón AFUERA del palo, contacto esquina inferior opuesta, 2–3 barras | 18–30 m |
 | Raso esquinado | Contacto centro-abajo, 1.5–2.5 barras, esquina del arquero | borde del área |
 | Debajo de la barrera | Raso con poca potencia (1.5 barras) cuando la barrera SALTA | borde del área |
 
@@ -96,4 +93,4 @@ Cada uno tiene además una **firma visual** (carrera y pose reconocibles, sin ro
 
 ## Definición de "hecho" para el MVP
 
-Un visitante abre la URL en su teléfono o PC, elige a Diego, juega los 5 niveles del Acto 1, siente que la barra de potencia, el timing verde y la curva responden como en su consola, y quiere seguir jugando.
+Un visitante abre la URL en su teléfono o PC, elige a Diego, juega los 5 niveles del Acto 1, siente que la barra de potencia única, la línea de proyección y la curva responden como en su consola (edición 26), y quiere seguir jugando.

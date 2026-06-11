@@ -14,6 +14,10 @@ pnpm-debug.log*
 logs/
 *.log
 
+# referencias internas con copyright (capturas del referente) — NUNCA al repo
+docs/ref-*.png
+docs/ref-*.jpg
+
 # editor / OS
 .vscode/*
 !.vscode/extensions.json
