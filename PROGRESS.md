@@ -19,7 +19,7 @@
 - [x] 1.2 Escena base: campo (plano con textura procedural de césped), arco reglamentario 7.32×2.44 m con red (líneas), iluminación tipo estadio nocturno, cielo oscuro. Cámara detrás del punto de tiro. _(2026-06-11: `core/field.ts` (dims+coords compartidas), `render/renderer.ts` (renderer+cámara+resize, sombras PCF, ACES), `render/world.ts` (césped procedural por CanvasTexture con franjas, arco cilíndrico + red de líneas, 4 torres SpotLight, fog nocturna), `render/ball.ts` (icosaedro flat-shaded). Cámara broadcast detrás del balón.)_
 
 ### Física
-- [ ] 1.3 Módulo `core/ballistics.ts`: integrador del balón con gravedad, drag y Magnus según parámetros de CLAUDE.md. Test unitario: con 3 barras y curva máxima, desplazamiento lateral ≈3 m a 25 m.
+- [x] 1.3 Módulo `core/ballistics.ts`: integrador del balón con gravedad, drag y Magnus según parámetros de CLAUDE.md. Test unitario: con 3 barras y curva máxima, desplazamiento lateral ≈3 m a 25 m. _(2026-06-11: `core/physics.ts` (constantes + `speedForPower`), `core/ballistics.ts` (`stepBall` Euler semi-implícito con scratch vectors + `traceTrajectory` para test y línea de apuntado). Vitest instalado, test verde. **MAGNUS_S calibrado a 0.00169** → comba ≈3 m a 25 m con 3 barras y `MAX_CURVE_SPIN=60`.)_
 - [ ] 1.4 Colisiones: postes/travesaño (rebote), red (gol + frenado), suelo (rebote amortiguado), fuera (out). Eventos: `GOAL`, `POST`, `SAVED`, `WALL`, `OUT`.
 
 ### Input y mecánica de tiro
@@ -60,3 +60,4 @@
 
 ## Notas de QA / feeling
 *(Claude Code: anota aquí cada ajuste de física o timing con su razón.)*
+- 2026-06-11 (1.3): `MAGNUS_S = 0.00169`. Razón: con S=0.00059 la comba a 25 m daba 1.05 m; Magnus es ~lineal en S, escalé ×(3.0/1.05). Test `ballistics.test.ts` verifica 2.5–3.5 m. Eje de spin vertical (0,ω,0) → comba lateral. Pendiente afinar en 1.18 con el tiro real (apuntado+contacto+timing).
