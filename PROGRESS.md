@@ -23,7 +23,7 @@
 - [x] 1.4 Colisiones: postes/travesaño (rebote), red (gol + frenado), suelo (rebote amortiguado), fuera (out). Eventos: `GOAL`, `POST`, `SAVED`, `WALL`, `OUT`. _(2026-06-11: `core/collisions.ts`: `resolveGoalLine` (interpola el cruce en z=0 → GOAL/POST/CROSSBAR/OUT), `bounceGround` (restitución 0.45, fricción 0.72, amortigua spin), `isOutOfPlay`, y `ShotCollider` con estado (recuerda pos previa). Enum incluye SAVED/WALL para 1.10/1.11. `collisions.test.ts`: 7 casos verdes.)_
 
 ### Input y mecánica de tiro
-- [ ] 1.5 Máquina de estados del tiro: `AIMING → CONTACT_SELECT → POWERING → TIMING → FLIGHT → RESULT`.
+- [x] 1.5 Máquina de estados del tiro: `AIMING → CONTACT_SELECT → POWERING → TIMING → FLIGHT → RESULT`. _(2026-06-11: `game/shot-machine.ts` framework-free: fases, `press()/release()/setAim()/setContact()/update(dtMs)`, carga de potencia (POWER_FILL_MS=1150) y ventana verde (±80 ms, centro 640). `getInput()` entrega aim/contact/power/timingError/green a 1.9. `shot-machine.test.ts`: 4 casos incl. recorrido completo, saturación y timing fallado.)_
 - [ ] 1.6 Apuntado: retícula movible (mouse/táctil/teclado), línea de trayectoria parcial cuya longitud viene del stat LÍNEA del pateador.
 - [ ] 1.7 Grilla de contacto simplificada MVP: eje X = curva izq/der, eje Y = elevación/raso. HUD del balón con indicador.
 - [ ] 1.8 Barra de potencia de 5 segmentos (mantener/soltar) + ventana de timing verde (±80 ms) con feedback visual y sonoro.
