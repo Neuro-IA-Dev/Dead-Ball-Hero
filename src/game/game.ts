@@ -44,8 +44,22 @@ const CONTACT_KEY_STEP = 0.12; // WASD
 const CAM_BACK = 5.5;
 const CAM_HEIGHT = 1.9;
 const CAM_LOOK_HEIGHT = 1.0;
+// Seguimiento amortiguado de la retícula (1.9c.2): casi fija, jamás gira 1:1.
+const CAM_FOLLOW_FACTOR = 0.2; // fracción del offset a la retícula
+const CAM_TAU = 0.25; // s, suavizado exponencial
+const CAM_YAW_CAP = (10 * Math.PI) / 180; // ±10°
+const CAM_PITCH_CAP = (4 * Math.PI) / 180; // ±4°
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+/** Ángulo horizontal (alrededor de Y) de un vector respecto al eje −Z. */
+function yawOf(v: THREE.Vector3): number {
+  return Math.atan2(v.x, -v.z);
+}
+/** Ángulo de elevación de un vector unitario-ish. */
+function pitchOf(v: THREE.Vector3): number {
+  return Math.atan2(v.y, Math.hypot(v.x, v.z));
+}
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -67,9 +81,12 @@ export class Game {
   private clock = new THREE.Clock();
   private spacePressed = false;
 
-  // Cámara base (fija) — 1.9c.2 le añade el seguimiento amortiguado.
+  // Cámara base + seguimiento amortiguado (1.9c.2).
   private camBasePos = new THREE.Vector3();
   private camBaseLook = new THREE.Vector3();
+  private camBaseFwd = new THREE.Vector3();
+  private camYaw = 0; // offset suavizado actual
+  private camPitch = 0;
 
   // Teclas de apuntado mantenidas + rampa.
   private aimKeys = { left: false, right: false, up: false, down: false };
@@ -112,8 +129,43 @@ export class Game {
       .addScaledVector(toGoal, -CAM_BACK)
       .addScaledVector(UP, CAM_HEIGHT);
     this.camBaseLook.set(0, CAM_LOOK_HEIGHT, 0);
+    this.camBaseFwd.copy(this.camBaseLook).sub(this.camBasePos).normalize();
     this.camera.position.copy(this.camBasePos);
     this.camera.lookAt(this.camBaseLook);
+  }
+
+  /**
+   * Cámara casi fija: posición invariable; el yaw/pitch siguen a la retícula
+   * con factor 0.2, suavizado exponencial (τ) y tope duro (±10°/±4°). El
+   * escenario JAMÁS gira 1:1 con el input.
+   */
+  private updateAimCamera(dt: number): void {
+    const aim = this.machine.aim;
+    const toR = new THREE.Vector3(aim.x, aim.y, 0)
+      .sub(this.camBasePos)
+      .normalize();
+    const yawOff = yawOf(toR) - yawOf(this.camBaseFwd);
+    const pitchOff = pitchOf(toR) - pitchOf(this.camBaseFwd);
+
+    const desiredYaw = clamp(
+      CAM_FOLLOW_FACTOR * yawOff,
+      -CAM_YAW_CAP,
+      CAM_YAW_CAP,
+    );
+    const desiredPitch = clamp(
+      CAM_FOLLOW_FACTOR * pitchOff,
+      -CAM_PITCH_CAP,
+      CAM_PITCH_CAP,
+    );
+
+    const alpha = 1 - Math.exp(-dt / CAM_TAU);
+    this.camYaw += (desiredYaw - this.camYaw) * alpha;
+    this.camPitch += (desiredPitch - this.camPitch) * alpha;
+
+    const fwd = this.camBaseFwd.clone().applyAxisAngle(UP, this.camYaw);
+    const right = new THREE.Vector3().crossVectors(fwd, UP).normalize();
+    fwd.applyAxisAngle(right, this.camPitch);
+    this.camera.lookAt(this.camBasePos.clone().add(fwd));
   }
 
   // --- Bucle ---------------------------------------------------------------
@@ -130,16 +182,19 @@ export class Game {
     switch (this.machine.phase) {
       case 'AIMING':
         this.updateAimKeys(dt);
+        this.updateAimCamera(dt);
         this.updateContactSelector();
         this.updateProjection();
         if (this.debug.enabled) this.updateDebug();
         break;
       case 'CONTACT':
+        this.updateAimCamera(dt);
         this.updateContactSelector();
         this.updateProjection();
         if (this.debug.enabled) this.updateDebug();
         break;
       case 'POWERING':
+        this.updateAimCamera(dt);
         this.updateContactSelector();
         this.updateProjection();
         this.hud.power.setValue(this.machine.power);
