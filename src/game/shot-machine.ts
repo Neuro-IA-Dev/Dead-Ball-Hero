@@ -29,26 +29,23 @@ export type ShotPhase =
   | 'FLIGHT'
   | 'RESULT';
 
-export interface AimTarget {
-  /** Punto objetivo sobre el plano del arco (metros). */
-  x: number;
-  y: number;
+export interface AimState {
+  /** Azimut (rad): rotación de la dirección de tiro alrededor del balón.
+   *  0 = directo al centro del arco; + hacia +X (la derecha del arquero). */
+  azimuth: number;
 }
 
 export interface ContactPoint {
-  /** Grilla de contacto, normalizada [-1,1]. X=lado, Y=alto/bajo. */
+  /** Punto de golpeo, normalizado [-1,1]. X=lado, Y=alto/bajo. */
   x: number;
   y: number;
 }
 
 export interface ShotInput {
-  aim: AimTarget;
+  aim: AimState;
   contact: ContactPoint;
   /** Potencia en barras [1..5] (fraccional). */
   power: number;
-  /** @deprecated sale en 1.9b.4; se mantiene en perfecto (0 / true). */
-  timingErrorMs: number;
-  green: boolean;
 }
 
 // --- Parámetros de potencia y carrera (calibrables en 1.18) ----------------
@@ -60,13 +57,16 @@ export const POWER_FILL_MS = 1150;
 /** Duración por defecto de la carrera del pateador (ms). */
 export const DEFAULT_RUNUP_MS = 600;
 
+/** Límite del azimut (rad) a cada lado de la dirección al centro del arco. */
+export const AZIMUTH_LIMIT = 0.5;
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
 export class ShotMachine {
   private _phase: ShotPhase = 'AIMING';
-  private _aim: AimTarget = { x: 0, y: 1.0 };
+  private _aim: AimState = { azimuth: 0 };
   private _contact: ContactPoint = { x: 0, y: 0 };
 
   private _power = POWER_MIN;
@@ -84,7 +84,7 @@ export class ShotMachine {
   get phase(): ShotPhase {
     return this._phase;
   }
-  get aim(): AimTarget {
+  get aim(): AimState {
     return this._aim;
   }
   get contact(): ContactPoint {
@@ -109,9 +109,15 @@ export class ShotMachine {
     this.onPhaseChange?.(next, prev);
   }
 
-  setAim(x: number, y: number): void {
+  /** Fija el azimut absoluto (rad). Solo en AIMING. */
+  setAzimuth(azimuth: number): void {
     if (this._phase !== 'AIMING') return;
-    this._aim = { x, y };
+    this._aim = { azimuth: clamp(azimuth, -AZIMUTH_LIMIT, AZIMUTH_LIMIT) };
+  }
+
+  /** Ajuste relativo del azimut (arrastre / teclas). Solo en AIMING. */
+  nudgeAzimuth(delta: number): void {
+    this.setAzimuth(this._aim.azimuth + delta);
   }
 
   setContact(x: number, y: number): void {
@@ -174,8 +180,6 @@ export class ShotMachine {
       aim: this._aim,
       contact: this._contact,
       power: this._power,
-      timingErrorMs: 0,
-      green: true,
     };
   }
 

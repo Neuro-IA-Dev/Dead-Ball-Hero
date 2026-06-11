@@ -26,9 +26,6 @@ buildWorld(scene);
 const ball = createBall();
 scene.add(ball);
 
-// Cámara broadcast: detrás del balón, mirando al arco (z = 0).
-camera.position.set(0, 1.8, ball.position.z + 5);
-camera.lookAt(0, 1.1, 0);
-
+// La cámara la posiciona el Game (orbital de apuntado, 1.9b.2).
 const game = new Game(renderer, scene, camera, ball, canvas, hudRoot);
 game.start();

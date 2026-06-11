@@ -3,6 +3,7 @@ import {
   ShotMachine,
   POWER_FILL_MS,
   DEFAULT_RUNUP_MS,
+  AZIMUTH_LIMIT,
 } from './shot-machine';
 
 describe('ShotMachine — secuencia del tiro (edición 26, sin timing)', () => {
@@ -10,7 +11,7 @@ describe('ShotMachine — secuencia del tiro (edición 26, sin timing)', () => {
     const m = new ShotMachine();
     expect(m.phase).toBe('AIMING');
 
-    m.setAim(1, 1.5);
+    m.setAzimuth(0.2);
     m.press(); // confirma mira
     expect(m.phase).toBe('CONTACT');
 
@@ -64,12 +65,22 @@ describe('ShotMachine — secuencia del tiro (edición 26, sin timing)', () => {
     expect(m.phase).toBe('FLIGHT');
   });
 
-  it('reset vuelve a AIMING y conserva la mira', () => {
+  it('reset vuelve a AIMING y conserva el azimut', () => {
     const m = new ShotMachine();
-    m.setAim(2, 1.2);
+    m.setAzimuth(0.3);
     m.press();
     m.reset();
     expect(m.phase).toBe('AIMING');
-    expect(m.aim).toEqual({ x: 2, y: 1.2 });
+    expect(m.aim).toEqual({ azimuth: 0.3 });
+  });
+
+  it('el azimut se limita a ±AZIMUTH_LIMIT y nudge es relativo', () => {
+    const m = new ShotMachine();
+    m.setAzimuth(10);
+    expect(m.aim.azimuth).toBeCloseTo(AZIMUTH_LIMIT, 5);
+    m.setAzimuth(0);
+    m.nudgeAzimuth(0.1);
+    m.nudgeAzimuth(0.1);
+    expect(m.aim.azimuth).toBeCloseTo(0.2, 5);
   });
 });

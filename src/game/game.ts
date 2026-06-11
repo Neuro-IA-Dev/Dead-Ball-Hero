@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { AimVisuals } from '@/render/aim';
+import { AimVisuals, PREVIEW_POWER } from '@/render/aim';
 import { Flight } from '@/game/flight';
 import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
-import { ShotMachine, type ShotPhase } from '@/game/shot-machine';
-import { solveShot } from '@/game/shot-solver';
+import { ShotMachine, type ShotPhase, AZIMUTH_LIMIT } from '@/game/shot-machine';
+import { solveShot, horizontalAzimuthDir } from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD } from '@/core/ballistics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
@@ -15,16 +15,19 @@ import { playKick } from '@/core/audio';
  *
  * Flujo (edición 26, sin timing verde):
  * AIMING→CONTACT→POWERING→RUNUP→FLIGHT→RESULT. Una sola barra de potencia.
+ * Apuntado por azimut: el puntero/teclas rotan la dirección y la cámara orbita.
  */
 
-const AIM_X_LIMIT = 6; // se puede apuntar afuera del palo (comba/trivela)
-const AIM_Y_MIN = 0.15;
-const AIM_Y_MAX = 3.0;
-const KEY_AIM_STEP = 0.12;
+const KEY_AZIMUTH_STEP = 0.03;
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
+// Cámara de apuntado (encuadre tipo referente: baja, detrás y al costado).
+const CAM_BACK = 5;
+const CAM_HEIGHT = 1.7;
+const CAM_SIDE = 1.6;
+const CAM_SIDE_SIGN = 1; // a la derecha de la dirección de tiro (QA 1.9b.6)
+const LOOK_HEIGHT = 1.0;
+
+const UP = new THREE.Vector3(0, 1, 0);
 
 export class Game {
   private machine = new ShotMachine();
@@ -35,8 +38,6 @@ export class Game {
   private ballStart: THREE.Vector3;
   private flight: Flight | null = null;
 
-  private raycaster = new THREE.Raycaster();
-  private goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private clock = new THREE.Clock();
   private spacePressed = false;
 
@@ -56,6 +57,7 @@ export class Game {
     this.machine.setRunupMs(this.kicker.runupMs);
     this.bindInput();
     this.onPhase('AIMING');
+    this.updateAimCamera();
   }
 
   start(): void {
@@ -75,10 +77,16 @@ export class Game {
 
     switch (this.machine.phase) {
       case 'AIMING':
-        this.aimVisuals.update(this.ballStart, this.machine.aim, this.kicker.line);
-        break;
+      case 'CONTACT':
       case 'POWERING':
-        this.hud.power.setValue(this.machine.power);
+        this.updateAimCamera();
+        this.updateProjection();
+        if (this.machine.phase === 'POWERING') {
+          this.hud.power.setValue(this.machine.power);
+        }
+        break;
+      case 'RUNUP':
+        this.updateAimCamera();
         break;
       case 'FLIGHT':
         if (this.flight) {
@@ -91,6 +99,36 @@ export class Game {
       default:
         break;
     }
+  }
+
+  /** Cámara baja detrás del balón, orbitando con el azimut. */
+  private updateAimCamera(): void {
+    const horiz = horizontalAzimuthDir(this.ballStart, this.machine.aim.azimuth);
+    const lateral = new THREE.Vector3().crossVectors(horiz, UP).normalize();
+    this.camera.position
+      .copy(this.ballStart)
+      .addScaledVector(horiz, -CAM_BACK)
+      .addScaledVector(UP, CAM_HEIGHT)
+      .addScaledVector(lateral, CAM_SIDE * CAM_SIDE_SIGN);
+    const dist = Math.hypot(this.ballStart.x, this.ballStart.z);
+    const target = this.ballStart.clone().addScaledVector(horiz, dist);
+    target.y = LOOK_HEIGHT;
+    this.camera.lookAt(target);
+  }
+
+  private updateProjection(): void {
+    const power =
+      this.machine.phase === 'POWERING' ? this.machine.power : PREVIEW_POWER;
+    this.aimVisuals.update(
+      this.ballStart,
+      {
+        azimuth: this.machine.aim.azimuth,
+        contact: this.machine.contact,
+        power,
+      },
+      this.kicker,
+      this.kicker.line,
+    );
   }
 
   private spinBall(dt: number): void {
@@ -116,22 +154,24 @@ export class Game {
         this.hud.setHint(t('hud.hintAim'));
         break;
       case 'CONTACT':
-        this.aimVisuals.setVisible(false);
+        this.aimVisuals.setVisible(true);
         this.hud.contact.reset();
         this.hud.contact.setVisible(true);
         this.hud.setHint(t('hud.hintContact'));
         break;
       case 'POWERING':
+        this.aimVisuals.setVisible(true);
         this.hud.contact.setVisible(false);
         this.hud.power.setVisible(true);
         this.hud.setHint(t('hud.hintPower'));
         break;
       case 'RUNUP':
-        // Potencia ya fijada: la barra queda visible mientras corre el pateador.
+        this.aimVisuals.setVisible(false);
         this.hud.setHint('');
         break;
       case 'FLIGHT':
         this.launch();
+        this.aimVisuals.setVisible(false);
         this.hud.power.setVisible(false);
         playKick();
         break;
@@ -163,38 +203,20 @@ export class Game {
     this.machine.release();
   }
 
-  private aimFromPointer(clientX: number, clientY: number): void {
+  /** Azimut absoluto desde la X del puntero (centro pantalla = recto). */
+  private azimuthFromPointer(clientX: number): void {
     if (this.machine.phase !== 'AIMING') return;
-    const ndc = new THREE.Vector2(
-      (clientX / window.innerWidth) * 2 - 1,
-      -((clientY / window.innerHeight) * 2 - 1),
-    );
-    this.raycaster.setFromCamera(ndc, this.camera);
-    const hit = new THREE.Vector3();
-    if (this.raycaster.ray.intersectPlane(this.goalPlane, hit)) {
-      this.machine.setAim(
-        clamp(hit.x, -AIM_X_LIMIT, AIM_X_LIMIT),
-        clamp(hit.y, AIM_Y_MIN, AIM_Y_MAX),
-      );
-    }
-  }
-
-  private nudgeAim(dx: number, dy: number): void {
-    if (this.machine.phase !== 'AIMING') return;
-    const a = this.machine.aim;
-    this.machine.setAim(
-      clamp(a.x + dx, -AIM_X_LIMIT, AIM_X_LIMIT),
-      clamp(a.y + dy, AIM_Y_MIN, AIM_Y_MAX),
-    );
+    const norm = (clientX / window.innerWidth) * 2 - 1; // [-1,1]
+    this.machine.setAzimuth(norm * AZIMUTH_LIMIT);
   }
 
   private bindInput(): void {
     this.canvas.addEventListener('pointermove', (e) =>
-      this.aimFromPointer(e.clientX, e.clientY),
+      this.azimuthFromPointer(e.clientX),
     );
     // pointerdown/up en window para que también funcione sobre el HUD.
     window.addEventListener('pointerdown', (e) => {
-      this.aimFromPointer(e.clientX, e.clientY);
+      this.azimuthFromPointer(e.clientX);
       this.press();
     });
     window.addEventListener('pointerup', () => this.release());
@@ -210,16 +232,10 @@ export class Game {
           }
           break;
         case 'ArrowLeft':
-          this.nudgeAim(-KEY_AIM_STEP, 0);
+          this.machine.nudgeAzimuth(-KEY_AZIMUTH_STEP);
           break;
         case 'ArrowRight':
-          this.nudgeAim(KEY_AIM_STEP, 0);
-          break;
-        case 'ArrowUp':
-          this.nudgeAim(0, KEY_AIM_STEP);
-          break;
-        case 'ArrowDown':
-          this.nudgeAim(0, -KEY_AIM_STEP);
+          this.machine.nudgeAzimuth(KEY_AZIMUTH_STEP);
           break;
         default:
           break;
