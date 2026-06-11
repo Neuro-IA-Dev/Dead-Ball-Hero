@@ -21,11 +21,19 @@ if (!canvas || !hudRoot) {
 }
 
 const { renderer, scene, camera } = createRenderContext(canvas);
-buildWorld(scene);
+const world = buildWorld(scene);
 
 const ball = createBall();
 scene.add(ball);
 
-// La cámara la posiciona el Game (orbital de apuntado, 1.9b.2).
-const game = new Game(renderer, scene, camera, ball, canvas, hudRoot);
+// La cámara la posiciona el Game (apuntado por retícula, casi fija).
+const game = new Game(
+  renderer,
+  scene,
+  camera,
+  ball,
+  canvas,
+  hudRoot,
+  world.net,
+);
 game.start();

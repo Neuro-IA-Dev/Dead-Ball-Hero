@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { AimVisuals } from '@/render/aim';
 import { ContactSelector } from '@/render/contact-selector';
+import { BallTrail } from '@/render/ball-trail';
+import { NetRipple } from '@/render/net-ripple';
 import { Flight } from '@/game/flight';
 import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
 import { ShotMachine, type ShotPhase, type ShotInput } from '@/game/shot-machine';
@@ -14,61 +16,70 @@ import {
   PERFECT_POWER_HALF,
 } from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD, traceTrajectory } from '@/core/ballistics';
-import { GOAL_HALF_WIDTH, BALL_RADIUS } from '@/core/field';
+import { GOAL_HALF_WIDTH, GOAL_DEPTH, BALL_RADIUS } from '@/core/field';
 import { Hud } from '@/ui/hud';
 import { DebugOverlay } from '@/ui/debug-overlay';
 import { t } from '@/core/i18n';
-import { playKick, playPerfect } from '@/core/audio';
+import { playKick, playPerfect, playPost, playCrowd } from '@/core/audio';
 
 /**
- * Controlador de juego — orquesta la `ShotMachine` con la escena, el input y
- * el HUD.
+ * Controlador de juego — orquesta la `ShotMachine` con la escena, el input,
+ * el HUD y el "juice" del disparo (1.9c.4).
  *
  * Flujo (edición 26): AIMING→CONTACT→POWERING→RUNUP→FLIGHT→RESULT.
- * Apuntado por RETÍCULA (1.9c): el puntero/teclas mueven la mira en el plano
- * del arco; la cámara queda casi fija (el seguimiento amortiguado es 1.9c.2).
+ * Apuntado por RETÍCULA; cámara casi fija con seguimiento amortiguado.
  */
 
 // Rango de la retícula sobre el plano del arco.
-const AIM_X_LIMIT = GOAL_HALF_WIDTH + 2; // ±2 m de margen fuera de los palos
+const AIM_X_LIMIT = GOAL_HALF_WIDTH + 2;
 const AIM_Y_MIN = 0.2;
 const AIM_Y_MAX = 2.6;
-// Movimiento con teclas: cruzar el ancho del arco (~7.3 m) en ~1.2 s a tope.
-const MAX_AIM_SPEED = (GOAL_HALF_WIDTH * 2) / 1.2; // m/s
-const AIM_RAMP_S = 0.6; // rampa cuadrática hasta velocidad máxima
+const MAX_AIM_SPEED = (GOAL_HALF_WIDTH * 2) / 1.2; // ~palo a palo en 1.2 s
+const AIM_RAMP_S = 0.6;
 
-const CONTACT_POINTER_SENS = 0.006; // por píxel de arrastre
-const CONTACT_KEY_STEP = 0.12; // WASD
+const CONTACT_POINTER_SENS = 0.006;
+const CONTACT_KEY_STEP = 0.12;
 
-// Cámara fija (broadcast detrás del balón).
+// Cámara fija + seguimiento amortiguado (1.9c.2).
 const CAM_BACK = 5.5;
 const CAM_HEIGHT = 1.9;
 const CAM_LOOK_HEIGHT = 1.0;
-// Seguimiento amortiguado de la retícula (1.9c.2): casi fija, jamás gira 1:1.
-const CAM_FOLLOW_FACTOR = 0.2; // fracción del offset a la retícula
-const CAM_TAU = 0.25; // s, suavizado exponencial
-const CAM_YAW_CAP = (10 * Math.PI) / 180; // ±10°
-const CAM_PITCH_CAP = (4 * Math.PI) / 180; // ±4°
+const CAM_FOLLOW_FACTOR = 0.2;
+const CAM_TAU = 0.25;
+const CAM_YAW_CAP = (10 * Math.PI) / 180;
+const CAM_PITCH_CAP = (4 * Math.PI) / 180;
+
+// Juice (1.9c.4).
+const HIT_STOP_MS = 70;
+const SHAKE_MS = 200;
+const SHAKE_MAG = 0.05; // m (≈ pocos px)
+const POST_ZOOM_MS = 220;
+const POST_ZOOM_DEG = 6;
+const RESULT_WAIT_MS = 1200; // auto-reset (no gol), saltable
+const REPLAY_MAX_MS = 2000; // repetición de gol, saltable
+const REPLAY_HOLD_MS = 350;
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-/** Ángulo horizontal (alrededor de Y) de un vector respecto al eje −Z. */
-function yawOf(v: THREE.Vector3): number {
-  return Math.atan2(v.x, -v.z);
-}
-/** Ángulo de elevación de un vector unitario-ish. */
-function pitchOf(v: THREE.Vector3): number {
-  return Math.atan2(v.y, Math.hypot(v.x, v.z));
-}
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+function yawOf(v: THREE.Vector3): number {
+  return Math.atan2(v.x, -v.z);
+}
+function pitchOf(v: THREE.Vector3): number {
+  return Math.atan2(v.y, Math.hypot(v.x, v.z));
+}
+
+type ResultMode = 'none' | 'wait' | 'replay';
+
 export class Game {
   private machine = new ShotMachine();
   private aimVisuals: AimVisuals;
   private contactSelector: ContactSelector;
+  private trail: BallTrail;
+  private netRipple: NetRipple;
   private hud: Hud;
   private debug: DebugOverlay;
   private kicker: Kicker = DEFAULT_KICKER;
@@ -81,16 +92,28 @@ export class Game {
   private clock = new THREE.Clock();
   private spacePressed = false;
 
-  // Cámara base + seguimiento amortiguado (1.9c.2).
+  // Cámara.
   private camBasePos = new THREE.Vector3();
   private camBaseLook = new THREE.Vector3();
   private camBaseFwd = new THREE.Vector3();
-  private camYaw = 0; // offset suavizado actual
+  private camYaw = 0;
   private camPitch = 0;
+  private baseFov: number;
 
-  // Teclas de apuntado mantenidas + rampa.
+  // Teclas de apuntado.
   private aimKeys = { left: false, right: false, up: false, down: false };
   private aimHold = 0;
+
+  // Juice.
+  private hitStopMs = 0;
+  private shakeMs = 0;
+  private postZoomMs = 0;
+  private flightTime = 0;
+  private samples: { p: THREE.Vector3; t: number }[] = [];
+  private resultMode: ResultMode = 'none';
+  private resultElapsed = 0;
+  private replayCamPos = new THREE.Vector3(2.5, 1.9, -GOAL_DEPTH - 4);
+  private replayCamLook = new THREE.Vector3(0, 1.1, 7);
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -99,10 +122,14 @@ export class Game {
     private ball: THREE.Mesh,
     private canvas: HTMLCanvasElement,
     hudRoot: HTMLElement,
+    net: THREE.LineSegments,
   ) {
     this.ballStart = ball.position.clone();
+    this.baseFov = camera.fov;
     this.aimVisuals = new AimVisuals(scene);
     this.contactSelector = new ContactSelector(scene, this.ball);
+    this.trail = new BallTrail(scene);
+    this.netRipple = new NetRipple(net);
     this.hud = new Hud(hudRoot);
     this.debug = new DebugOverlay(hudRoot);
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
@@ -117,7 +144,6 @@ export class Game {
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
-  /** Cámara base fija: detrás del balón mirando al centro del arco. */
   private setupCamera(): void {
     const toGoal = new THREE.Vector3(
       -this.ballStart.x,
@@ -130,42 +156,16 @@ export class Game {
       .addScaledVector(UP, CAM_HEIGHT);
     this.camBaseLook.set(0, CAM_LOOK_HEIGHT, 0);
     this.camBaseFwd.copy(this.camBaseLook).sub(this.camBasePos).normalize();
-    this.camera.position.copy(this.camBasePos);
-    this.camera.lookAt(this.camBaseLook);
+    this.resetCamera();
   }
 
-  /**
-   * Cámara casi fija: posición invariable; el yaw/pitch siguen a la retícula
-   * con factor 0.2, suavizado exponencial (τ) y tope duro (±10°/±4°). El
-   * escenario JAMÁS gira 1:1 con el input.
-   */
-  private updateAimCamera(dt: number): void {
-    const aim = this.machine.aim;
-    const toR = new THREE.Vector3(aim.x, aim.y, 0)
-      .sub(this.camBasePos)
-      .normalize();
-    const yawOff = yawOf(toR) - yawOf(this.camBaseFwd);
-    const pitchOff = pitchOf(toR) - pitchOf(this.camBaseFwd);
-
-    const desiredYaw = clamp(
-      CAM_FOLLOW_FACTOR * yawOff,
-      -CAM_YAW_CAP,
-      CAM_YAW_CAP,
-    );
-    const desiredPitch = clamp(
-      CAM_FOLLOW_FACTOR * pitchOff,
-      -CAM_PITCH_CAP,
-      CAM_PITCH_CAP,
-    );
-
-    const alpha = 1 - Math.exp(-dt / CAM_TAU);
-    this.camYaw += (desiredYaw - this.camYaw) * alpha;
-    this.camPitch += (desiredPitch - this.camPitch) * alpha;
-
-    const fwd = this.camBaseFwd.clone().applyAxisAngle(UP, this.camYaw);
-    const right = new THREE.Vector3().crossVectors(fwd, UP).normalize();
-    fwd.applyAxisAngle(right, this.camPitch);
-    this.camera.lookAt(this.camBasePos.clone().add(fwd));
+  private resetCamera(): void {
+    this.camYaw = 0;
+    this.camPitch = 0;
+    this.camera.fov = this.baseFov;
+    this.camera.updateProjectionMatrix();
+    this.camera.position.copy(this.camBasePos);
+    this.camera.lookAt(this.camBaseLook);
   }
 
   // --- Bucle ---------------------------------------------------------------
@@ -201,19 +201,118 @@ export class Game {
         if (this.debug.enabled) this.updateDebug();
         break;
       case 'FLIGHT':
-        if (this.flight) {
-          this.flight.step(dt);
-          this.ball.position.copy(this.flight.position);
-          this.spinBall(dt);
-          if (this.flight.done) this.machine.resolveFlight();
-        }
+        this.updateFlight(dt);
+        break;
+      case 'RESULT':
+        this.updateResult(dt);
         break;
       default:
         break;
     }
   }
 
-  /** Movimiento de la retícula con flechas mantenidas (rampa cuadrática). */
+  private updateFlight(dt: number): void {
+    if (!this.flight) return;
+    // Micro hit-stop al golpear: congela ~70 ms para dar peso al impacto.
+    if (this.hitStopMs > 0) {
+      this.hitStopMs -= dt * 1000;
+      return;
+    }
+    this.flight.step(dt);
+    this.flightTime += dt;
+    this.ball.position.copy(this.flight.position);
+    this.spinBall(dt);
+    this.samples.push({ p: this.flight.position.clone(), t: this.flightTime });
+    this.trail.push(this.ball.position, performance.now());
+    if (this.flight.done) this.machine.resolveFlight();
+  }
+
+  private updateResult(dt: number): void {
+    this.resultElapsed += dt * 1000;
+    this.netRipple.update(dt);
+
+    if (this.resultMode === 'replay') {
+      this.updateReplay(dt);
+    } else {
+      this.applyShakeAndZoom(dt, this.camBasePos, this.camBaseLook);
+      if (this.resultElapsed >= RESULT_WAIT_MS) this.machine.reset();
+    }
+  }
+
+  private updateReplay(dt: number): void {
+    const tSec = this.resultElapsed / 1000;
+    // Reproduce la trayectoria grabada en tiempo real.
+    let idx = this.samples.length - 1;
+    for (let i = 0; i < this.samples.length; i++) {
+      if (this.samples[i]!.t >= tSec) {
+        idx = i;
+        break;
+      }
+    }
+    this.ball.position.copy(this.samples[idx]!.p);
+    this.trail.push(this.ball.position, performance.now());
+
+    this.applyShakeAndZoom(dt, this.replayCamPos, this.replayCamLook);
+
+    const lastT = this.samples[this.samples.length - 1]?.t ?? 0;
+    const done =
+      this.resultElapsed >= REPLAY_MAX_MS ||
+      tSec > lastT + REPLAY_HOLD_MS / 1000;
+    if (done) this.machine.reset();
+  }
+
+  /** Coloca la cámara en `pos→look` y le suma shake/zoom transitorios. */
+  private applyShakeAndZoom(
+    dt: number,
+    pos: THREE.Vector3,
+    look: THREE.Vector3,
+  ): void {
+    this.camera.position.copy(pos);
+    if (this.shakeMs > 0) {
+      const k = (this.shakeMs / SHAKE_MS) * SHAKE_MAG;
+      this.camera.position.x += (Math.random() * 2 - 1) * k;
+      this.camera.position.y += (Math.random() * 2 - 1) * k;
+      this.shakeMs -= dt * 1000;
+    }
+    if (this.postZoomMs > 0) {
+      const f = this.postZoomMs / POST_ZOOM_MS;
+      this.camera.fov = this.baseFov - POST_ZOOM_DEG * f;
+      this.camera.updateProjectionMatrix();
+      this.postZoomMs -= dt * 1000;
+      if (this.postZoomMs <= 0) {
+        this.camera.fov = this.baseFov;
+        this.camera.updateProjectionMatrix();
+      }
+    }
+    this.camera.lookAt(look);
+  }
+
+  private updateAimCamera(dt: number): void {
+    const aim = this.machine.aim;
+    const toR = new THREE.Vector3(aim.x, aim.y, 0)
+      .sub(this.camBasePos)
+      .normalize();
+    const yawOff = yawOf(toR) - yawOf(this.camBaseFwd);
+    const pitchOff = pitchOf(toR) - pitchOf(this.camBaseFwd);
+
+    const desiredYaw = clamp(CAM_FOLLOW_FACTOR * yawOff, -CAM_YAW_CAP, CAM_YAW_CAP);
+    const desiredPitch = clamp(
+      CAM_FOLLOW_FACTOR * pitchOff,
+      -CAM_PITCH_CAP,
+      CAM_PITCH_CAP,
+    );
+
+    const alpha = 1 - Math.exp(-dt / CAM_TAU);
+    this.camYaw += (desiredYaw - this.camYaw) * alpha;
+    this.camPitch += (desiredPitch - this.camPitch) * alpha;
+
+    const fwd = this.camBaseFwd.clone().applyAxisAngle(UP, this.camYaw);
+    const right = new THREE.Vector3().crossVectors(fwd, UP).normalize();
+    fwd.applyAxisAngle(right, this.camPitch);
+    this.camera.position.copy(this.camBasePos);
+    this.camera.lookAt(this.camBasePos.clone().add(fwd));
+  }
+
   private updateAimKeys(dt: number): void {
     const k = this.aimKeys;
     if (!(k.left || k.right || k.up || k.down)) {
@@ -222,7 +321,7 @@ export class Game {
     }
     this.aimHold += dt;
     const ramp = Math.min(1, this.aimHold / AIM_RAMP_S);
-    const step = MAX_AIM_SPEED * ramp * ramp * dt; // cuadrática
+    const step = MAX_AIM_SPEED * ramp * ramp * dt;
     const a = this.machine.aim;
     let x = a.x;
     let y = a.y;
@@ -247,7 +346,6 @@ export class Game {
     this.hud.setContactType(t(`shot.${classifyContact(c, this.kicker)}`));
   }
 
-  /** Input previsualizado: en POWERING usa la potencia real; si no, la óptima. */
   private previewInput(): ShotInput {
     const contact = this.machine.contact;
     const power =
@@ -266,7 +364,6 @@ export class Game {
     );
   }
 
-  /** Overlay de QA: retícula, contacto, potencia, sigma, cruce previsto. */
   private updateDebug(): void {
     const input = this.machine.getInput();
     const type = classifyContact(input.contact, this.kicker);
@@ -290,7 +387,6 @@ export class Game {
     ]);
   }
 
-  /** Error de centrado del selector vs el balón, en píxeles y % del radio. */
   private contactCenterError(): string {
     const ballPx = this.projectPx(this.ball.position);
     const right = new THREE.Vector3().setFromMatrixColumn(
@@ -307,7 +403,6 @@ export class Game {
     return `${errPx.toFixed(1)}px (${pct.toFixed(1)}% r)`;
   }
 
-  /** Proyecta un punto del mundo a píxeles de pantalla. */
   private projectPx(world: THREE.Vector3): THREE.Vector2 {
     const v = world.clone().project(this.camera);
     return new THREE.Vector2(
@@ -331,7 +426,10 @@ export class Game {
     switch (phase) {
       case 'AIMING':
         this.flight = null;
+        this.resultMode = 'none';
+        this.trail.clear();
         this.ball.position.copy(this.ballStart);
+        this.resetCamera();
         this.aimVisuals.setVisible(true);
         this.contactSelector.setVisible(true);
         this.hud.power.setVisible(false);
@@ -365,16 +463,39 @@ export class Game {
         this.contactSelector.setVisible(false);
         this.hud.setContactType(null);
         this.hud.power.setVisible(false);
-        playKick();
+        this.hitStopMs = HIT_STOP_MS;
+        this.flightTime = 0;
+        this.samples.length = 0;
+        this.trail.clear();
+        playKick(this.machine.power);
         break;
       case 'RESULT':
-        this.hud.setResult(this.flight?.event ?? 'OUT');
-        this.hud.setHint(t('hud.tapToContinue'));
+        this.onResult();
         break;
     }
   }
 
-  /** Feedback de "potencia perfecta" al soltar la barra (1.9b.4). */
+  private onResult(): void {
+    const event = this.flight?.event ?? 'OUT';
+    this.resultElapsed = 0;
+    this.hud.setResult(event);
+    this.hud.setHint(t('hud.tapToContinue'));
+
+    if (event === 'GOAL') {
+      this.resultMode = 'replay';
+      this.shakeMs = SHAKE_MS;
+      playCrowd();
+      const cross = this.flight?.cross;
+      if (cross) this.netRipple.trigger(cross.x, cross.y);
+    } else if (event === 'POST' || event === 'CROSSBAR') {
+      this.resultMode = 'wait';
+      this.postZoomMs = POST_ZOOM_MS;
+      playPost();
+    } else {
+      this.resultMode = 'wait';
+    }
+  }
+
   private onPowerReleased(power: number): void {
     if (isPerfectPower(power, this.machine.contact, this.kicker)) {
       this.hud.power.flashPerfect();
@@ -383,7 +504,6 @@ export class Game {
     }
   }
 
-  /** Mapeo input→velocidad+spin (1.9) y arranque del vuelo. */
   private launch(): void {
     const input = this.machine.getInput();
     const initial = solveShot(input, {
@@ -396,7 +516,7 @@ export class Game {
   // --- Input ---------------------------------------------------------------
 
   private press(): void {
-    if (this.machine.phase === 'RESULT') this.machine.reset();
+    if (this.machine.phase === 'RESULT') this.machine.reset(); // tap = saltar
     else this.machine.press();
   }
 
@@ -404,7 +524,6 @@ export class Game {
     this.machine.release();
   }
 
-  /** Mueve la retícula al punto del plano del arco bajo el puntero (absoluto). */
   private aimFromPointer(clientX: number, clientY: number): void {
     if (this.machine.phase !== 'AIMING') return;
     const ndc = new THREE.Vector2(
@@ -418,7 +537,6 @@ export class Game {
     }
   }
 
-  /** Pointer move: mira en AIMING, contacto (relativo) en CONTACT. */
   private onPointerMove(e: PointerEvent): void {
     if (this.machine.phase === 'AIMING') {
       this.aimFromPointer(e.clientX, e.clientY);
@@ -438,13 +556,11 @@ export class Game {
 
   private bindInput(): void {
     this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
-    // pointerdown/up en window para que también funcione sobre el HUD.
     window.addEventListener('pointerdown', (e) => {
       this.aimFromPointer(e.clientX, e.clientY);
       this.press();
     });
     window.addEventListener('pointerup', () => this.release());
-
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
   }
@@ -471,7 +587,6 @@ export class Game {
       case 'ArrowDown':
         this.aimKeys.down = true;
         break;
-      // WASD: punto de contacto (en CONTACT).
       case 'KeyA':
         this.nudgeContact(-CONTACT_KEY_STEP, 0);
         break;

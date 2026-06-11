@@ -21,30 +21,41 @@ Economía: estrellas (1–3 por nivel) desbloquean actos; monedas (por gol, bonu
 
 **Criterio de éxito:** la receta "alinear la línea al costado de la barrera + contacto de comba + soltar en 2.5-3 barras" mete gol consistentemente, y pasarse o quedarse corto de potencia castiga de forma justa y legible.
 
-## FASE 2 — Los 6 tiros + roster
+## FASE 2 — Los 6 tiros + roster + entrenador
 
 - Grilla de contacto completa (trivela, knuckleball con flutter, caída, raso, debajo de barrera).
 - Barrera que salta (probabilística), arquero con niveles de reacción.
 - Pateadores: Roberto, David, Andrea, Juni — cada uno con stats, **firma visual** (carrera/pose reconocible, ver CLAUDE.md) y su capítulo con **Momento Legendario**.
+- **Informe del Entrenador v1:** diagnóstico post-tiro desde datos del solver, textos por mentor (ver CLAUDE.md). Es la feature de entrenamiento prioritaria.
+- **Mando Fantasma v1:** modo espejo (inputs en vivo sobre gamepad genérico) + modo fantasma (replay de tus inputs vs ejecución ideal).
+- **Sistema de puntaje** con récord por nivel y umbrales de estrellas por puntos (ver CLAUDE.md y referencia visual).
 - Sistema de "escenografía de momento": kits de colores evocativos sin escudos, clima (lluvia/noche), texto narrativo del contexto.
-- Modo Práctica Libre con overlay de inputs ("modo fantasma").
+- Modo Práctica Libre (Mando Fantasma espejo + Informe del Entrenador siempre activos).
 - Sticks virtuales con zona muerta configurable + vibración háptica.
+- **Upgrade visual hacia `docs/ref-vision-dbh.png`:** multitud (impostors/sprites animados), pantalla de estadio con logo, banderas, HUD en paneles oscuros según la referencia, indicador de viento y panel de puntaje objetivo.
 
 ## FASE 3 — Carrera completa (50 niveles)
 
 - Actos 2, 3 y 4 (ver diseño abajo). Escenarios de presión con marcador, reloj y narrativa.
 - Pateadores restantes: Leo, Cris, Dinho, Sini. Jefe final: Rogério.
 - Animaciones de carrera diferenciadas por pateador (la firma visual EN movimiento: carrera larga de Roberto, postura ancha de Cris, pausa de Leo).
-- Viento (modo arcade), estadios temáticos, repetición de goles.
+- **Mando Fantasma v2 — modo Tutor:** el mando "juega solo" la receta del mentor antes de tu intento.
+- Viento (modo arcade y Acto 4, con indicador m/s como en la referencia), estadios temáticos, repetición de goles.
 - Audio completo: multitud reactiva, relator minimalista ("¡En el último minuto!").
 
 ## FASE 4 — Pulido y distribución
 
-- Modo Minuto 93 arcade (rachas, leaderboard local).
-- **Localización completa a inglés (`en.json`)** para lanzamiento mundial; revisar que ningún texto quede fuera del sistema de locales.
+- Modo Minuto 93 arcade (rachas, leaderboard local de puntaje).
+- **Localización completa a inglés (`en.json`)** para lanzamiento mundial; revisar que ningún texto quede fuera del sistema de locales (incluye todos los textos del Entrenador).
 - PWA instalable (ícono, offline). Opcional: empaquetado Capacitor para tiendas.
-- Soporte completo de mando físico en PC con mapeo idéntico al referente de consola.
+- Soporte completo de mando físico en PC: el Mando Fantasma en espejo refleja el mando real conectado — practicas con TU mando.
 - Balance final con telemetría local (tasa de gol por nivel objetivo: 60% acto 1, 35% acto 4).
+
+## FASE 5 — Versus (jugadores reales)
+
+- **v1 local por turnos (sin backend):** dos jugadores, mismo dispositivo, mismos 5 tiros (mismo nivel/viento/barrera); gana el puntaje. Pantalla de duelo con nombres y marcador.
+- **v2 asíncrono por código de desafío:** exportas tu ronda (semilla del nivel + puntaje + grabación de inputs) como código/link; el rival la juega y compara; puede ver tu **replay fantasma** (tus inputs sobre el mando fantasma + tu balón como trazo fantasma en el mundo). Sin backend: el desafío viaja en el propio código/URL.
+- **v3 online en tiempo real (requiere backend):** matchmaking, duelos al mejor de 5, torneos. Solo si v1/v2 validan la demanda; rompe la regla "sin backend" y se decide con el usuario.
 
 ---
 

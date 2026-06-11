@@ -16,6 +16,8 @@ import {
 
 export interface World {
   group: THREE.Group;
+  /** Red del arco (LineSegments) para la ondulación al gol (1.9c.4). */
+  net: THREE.LineSegments;
 }
 
 /** Textura de césped procedural con franjas de corte (sin assets externos). */
@@ -69,7 +71,7 @@ function buildField(): THREE.Mesh {
   return field;
 }
 
-function buildGoal(): THREE.Group {
+function buildGoal(): { group: THREE.Group; net: THREE.LineSegments } {
   const goal = new THREE.Group();
   const white = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -101,8 +103,9 @@ function buildGoal(): THREE.Group {
   bar.position.set(0, GOAL_HEIGHT, 0);
   bar.castShadow = true;
 
-  goal.add(left, right, bar, buildNet());
-  return goal;
+  const net = buildNet();
+  goal.add(left, right, bar, net);
+  return { group: goal, net };
 }
 
 /** Red como grilla de líneas (CLAUDE.md: red con líneas, low-poly). */
@@ -134,7 +137,10 @@ function buildNet(): THREE.LineSegments {
     transparent: true,
     opacity: 0.35,
   });
-  return new THREE.LineSegments(geo, mat);
+  const net = new THREE.LineSegments(geo, mat);
+  // Copia de las posiciones base para la ondulación (1.9c.4).
+  net.userData.basePositions = Float32Array.from(pts);
+  return net;
 }
 
 function buildLights(scene: THREE.Scene): void {
@@ -163,9 +169,11 @@ export function buildWorld(scene: THREE.Scene): World {
   scene.fog = new THREE.Fog(0x06080d, 45, 90);
 
   const group = new THREE.Group();
-  group.add(buildField(), buildGoal());
+  const field = buildField();
+  const goal = buildGoal();
+  group.add(field, goal.group);
   scene.add(group);
   buildLights(scene);
 
-  return { group };
+  return { group, net: goal.net };
 }

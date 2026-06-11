@@ -6,6 +6,29 @@
 
 **No es un juego de fútbol completo.** Es exclusivamente la experiencia del tiro libre, pulida al máximo.
 
+**Misión doble:** (1) que marcar un gol aquí se sienta tan bien que den ganas del siguiente; (2) que cada sesión te haga objetivamente MEJOR pateando tiros libres en tu consola. Todo feature se evalúa contra esas dos preguntas.
+
+## Referencia visual maestra
+
+`docs/ref-vision-dbh.png` (aportada por el usuario) define el objetivo de look & feel: estadio nocturno low-poly vibrante con multitud densa, pateador low-poly estilizado (dorsal 10, sin rostro), pantalla del estadio con el logo DEAD BALL HERO, grilla de contacto verde bajo el balón con punto rojo, línea de proyección verde brillante con curva, etiqueta "CHANFLE CON EL INTERIOR DEL PIE" en franja oscura, y HUD inferior en panel oscuro: nivel + nombre + estadio (izq), intentos restantes, barra POTENCIA DEL TIRO de 5 segmentos numerados, mejor puntaje/récord, e indicador circular de EFECTO (der). Arriba: viento (m/s) y panel de PUNTAJE OBJETIVO con umbrales de estrellas. Apuntar a esa calidad — y superarla.
+
+## El Mando Fantasma (feature insignia de entrenamiento)
+
+Overlay opcional de un **gamepad genérico** semitransparente (esquina inferior o bajo el HUD) con dos sticks, gatillos y botones. Tres modos:
+1. **Espejo (en vivo):** muestra en tiempo real los inputs del jugador traducidos a lenguaje de mando (stick izquierdo = mira, stick derecho = contacto/efecto, R2/DISPARO = potencia). En PC con mando físico conectado, refleja el mando real.
+2. **Fantasma (post-tiro):** repite tus inputs Y superpone en otro color la ejecución ideal para ese tiro — ves tu stick y el stick fantasma lado a lado en el tiempo (dónde soltaste la potencia vs dónde debías).
+3. **Tutor (pre-tiro, capítulos de mentor):** el mando fantasma "juega solo" mostrando la secuencia de la receta antes de que la intentes.
+
+Legal: silueta de mando GENÉRICA (diseño propio, no la forma registrada de ningún fabricante); NUNCA usar los símbolos geométricos de botones de Sony (△◯✕□) ni nombres comerciales. Etiquetas L1/L2/R1/R2 + glifos propios son aceptables (convención de mandos genéricos de terceros).
+
+## El Informe del Entrenador (feedback post-tiro)
+
+Tras cada tiro (especialmente errados), una tarjeta breve y accionable, firmada por el mentor del capítulo con su personalidad, que diagnostica EN LENGUAJE DEL REFERENTE qué pasó y qué corregir. Reglas:
+- Máximo 2 correcciones por tiro, la más impactante primero. Datos concretos, no vaguedades: "Soltaste en 3.8 barras; para chanfle desde 22 m suelta entre 2.5 y 3" / "Tu mira estaba 2 m dentro del arco; alinéala al costado de la barrera y deja que la comba haga el resto" / "Contacto muy abajo: el punto rojo debe ir al costado del balón para chanfle, no en la base".
+- El diagnóstico sale de datos reales del solver (delta de potencia vs óptimo, posición de mira, zona de contacto, dispersión sufrida) — nunca mensajes aleatorios.
+- En goles: refuerzo breve + qué hiciste bien ("Potencia perfecta. Eso mismo en tu consola.").
+- Cada texto vive en `es.json` con variantes por mentor.
+
 ## Reglas legales INNEGOCIABLES
 
 - NUNCA usar las palabras "FIFA", "EA", "FC 25", "PlayStation", "DualSense", nombres de clubes, ligas, escudos ni nombres completos de jugadores reales.
@@ -79,9 +102,11 @@ Cada uno tiene además una **firma visual** (carrera y pose reconocibles, sin ro
 
 ## Estructura del juego
 
+- **Sistema de puntaje (visible en la referencia visual):** cada gol suma puntos: base por gol + bonus por potencia perfecta, por ángulo (diana), por distancia, por no usar línea de ayuda y por tiro exigido. Las estrellas del nivel pueden expresarse también como umbrales de puntaje (ej. 7.500 / 15.000 / 25.000) — las condiciones de LEVELS.md se mantienen y el puntaje las complementa. Mejor puntaje y récord por nivel persisten en localStorage. El puntaje es la moneda de comparación para el futuro versus.
 - **Modo Carrera "Camino a la Leyenda":** 50 niveles en 4 actos (ver ROADMAP.md). Sistema de 1–3 estrellas por nivel, monedas para desbloquear pateadores, estadios y balones.
-- **Modo Práctica Libre:** cualquier posición, sin presión, con overlay de inputs ("modo fantasma") que muestra qué hiciste con los sticks y la barra — herramienta de aprendizaje clave.
+- **Modo Práctica Libre:** cualquier posición, sin presión, con Mando Fantasma en modo espejo e Informe del Entrenador tras cada tiro — el gimnasio puro.
 - **Modo Minuto 93 (arcade):** escenarios aleatorios de presión, racha de supervivencia.
+- **Modo Versus (futuro, Fase 5):** duelos entre jugadores reales. Primero local por turnos (mismo dispositivo: mismos 5 tiros, gana el puntaje); luego asíncrono (desafías con tu secuencia + replay fantasma de tus inputs para que el rival vea tu ejecución); tiempo real online queda para mucho después (requiere backend, rompe el "sin backend" del MVP).
 
 ## Convenciones de código
 
