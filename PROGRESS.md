@@ -20,7 +20,7 @@
 
 ### Física
 - [x] 1.3 Módulo `core/ballistics.ts`: integrador del balón con gravedad, drag y Magnus según parámetros de CLAUDE.md. Test unitario: con 3 barras y curva máxima, desplazamiento lateral ≈3 m a 25 m. _(2026-06-11: `core/physics.ts` (constantes + `speedForPower`), `core/ballistics.ts` (`stepBall` Euler semi-implícito con scratch vectors + `traceTrajectory` para test y línea de apuntado). Vitest instalado, test verde. **MAGNUS_S calibrado a 0.00169** → comba ≈3 m a 25 m con 3 barras y `MAX_CURVE_SPIN=60`.)_
-- [ ] 1.4 Colisiones: postes/travesaño (rebote), red (gol + frenado), suelo (rebote amortiguado), fuera (out). Eventos: `GOAL`, `POST`, `SAVED`, `WALL`, `OUT`.
+- [x] 1.4 Colisiones: postes/travesaño (rebote), red (gol + frenado), suelo (rebote amortiguado), fuera (out). Eventos: `GOAL`, `POST`, `SAVED`, `WALL`, `OUT`. _(2026-06-11: `core/collisions.ts`: `resolveGoalLine` (interpola el cruce en z=0 → GOAL/POST/CROSSBAR/OUT), `bounceGround` (restitución 0.45, fricción 0.72, amortigua spin), `isOutOfPlay`, y `ShotCollider` con estado (recuerda pos previa). Enum incluye SAVED/WALL para 1.10/1.11. `collisions.test.ts`: 7 casos verdes.)_
 
 ### Input y mecánica de tiro
 - [ ] 1.5 Máquina de estados del tiro: `AIMING → CONTACT_SELECT → POWERING → TIMING → FLIGHT → RESULT`.
