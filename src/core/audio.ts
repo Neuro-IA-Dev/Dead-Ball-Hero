@@ -11,15 +11,20 @@ function ac(): AudioContext {
   return ctx;
 }
 
-function tone(freq: number, durMs: number, type: OscillatorType, gain = 0.18): void {
+function tone(
+  freq: number,
+  durMs: number,
+  type: OscillatorType,
+  gain = 0.18,
+  delayMs = 0,
+): void {
   const a = ac();
   const osc = a.createOscillator();
   const g = a.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  g.gain.value = gain;
   // Envolvente corta para evitar clicks.
-  const now = a.currentTime;
+  const now = a.currentTime + delayMs / 1000;
   const dur = durMs / 1000;
   g.gain.setValueAtTime(0, now);
   g.gain.linearRampToValueAtTime(gain, now + 0.005);
@@ -29,9 +34,10 @@ function tone(freq: number, durMs: number, type: OscillatorType, gain = 0.18): v
   osc.stop(now + dur);
 }
 
-/** Timing perfecto (ventana verde). */
-export function playGreen(): void {
-  tone(880, 110, 'triangle', 0.2);
+/** Potencia perfecta: pequeño arpegio ascendente "dorado". */
+export function playPerfect(): void {
+  tone(660, 90, 'triangle', 0.16, 0);
+  tone(990, 130, 'triangle', 0.18, 70);
 }
 
 /** Disparo del balón. */

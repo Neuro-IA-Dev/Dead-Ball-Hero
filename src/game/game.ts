@@ -8,11 +8,14 @@ import {
   solveShot,
   horizontalAzimuthDir,
   classifyContact,
+  optimalPowerCenter,
+  isPerfectPower,
+  PERFECT_POWER_HALF,
 } from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD } from '@/core/ballistics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
-import { playKick } from '@/core/audio';
+import { playKick, playPerfect } from '@/core/audio';
 
 /**
  * Controlador de juego — orquesta la `ShotMachine` con la escena, el input y
@@ -62,6 +65,7 @@ export class Game {
     this.contactSelector = new ContactSelector(scene, this.ballStart);
     this.hud = new Hud(hudRoot);
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
+    this.machine.onPowerReleased = (power) => this.onPowerReleased(power);
     this.machine.setRunupMs(this.kicker.runupMs);
     this.bindInput();
     this.onPhase('AIMING');
@@ -177,6 +181,10 @@ export class Game {
       case 'POWERING':
         this.aimVisuals.setVisible(true);
         this.contactSelector.setVisible(true);
+        this.hud.power.setOptimal(
+          optimalPowerCenter(this.machine.contact, this.kicker),
+          PERFECT_POWER_HALF,
+        );
         this.hud.power.setVisible(true);
         this.hud.setHint(t('hud.hintPower'));
         break;
@@ -198,6 +206,15 @@ export class Game {
         this.hud.setResult(this.flight?.event ?? 'OUT');
         this.hud.setHint(t('hud.tapToContinue'));
         break;
+    }
+  }
+
+  /** Feedback de "potencia perfecta" al soltar la barra (1.9b.4). */
+  private onPowerReleased(power: number): void {
+    if (isPerfectPower(power, this.machine.contact, this.kicker)) {
+      this.hud.power.flashPerfect();
+      playPerfect();
+      navigator.vibrate?.(40);
     }
   }
 

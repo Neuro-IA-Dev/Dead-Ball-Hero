@@ -65,17 +65,16 @@ export class Hud {
 export class PowerBar {
   readonly root: HTMLElement;
   private fill: HTMLElement;
+  private optimal: HTMLElement;
 
   constructor() {
     this.root = el('div', 'power-bar');
     const track = el('div', 'power-track');
     this.fill = el('div', 'power-fill');
     track.append(this.fill);
-    // Zona óptima 2.5–3.5 barras → (1.5/4)..(2.5/4) del recorrido.
-    const optimal = el('div', 'power-optimal');
-    optimal.style.left = `${(1.5 / 4) * 100}%`;
-    optimal.style.width = `${(1 / 4) * 100}%`;
-    track.append(optimal);
+    // Ventana de "potencia perfecta" del tipo de golpe (se ubica con setOptimal).
+    this.optimal = el('div', 'power-optimal');
+    track.append(this.optimal);
     // Divisores de los 5 segmentos.
     for (let i = 1; i < 5; i++) {
       const d = el('div', 'power-divider');
@@ -83,6 +82,7 @@ export class PowerBar {
       track.append(d);
     }
     this.root.append(track);
+    this.setOptimal(2.75, 0.5);
   }
 
   setVisible(v: boolean): void {
@@ -91,9 +91,29 @@ export class PowerBar {
 
   /** `bars` en [1..5]. */
   setValue(bars: number): void {
-    const tNorm = Math.max(0, Math.min(1, (bars - 1) / 4));
-    this.fill.style.width = `${tNorm * 100}%`;
+    this.fill.style.width = `${frac(bars) * 100}%`;
   }
+
+  /** Ubica la banda óptima: `center` barras ± `half` barras. */
+  setOptimal(center: number, half: number): void {
+    const lo = frac(center - half);
+    const hi = frac(center + half);
+    this.optimal.style.left = `${lo * 100}%`;
+    this.optimal.style.width = `${(hi - lo) * 100}%`;
+  }
+
+  /** Brillo dorado de "potencia perfecta" al soltar. */
+  flashPerfect(): void {
+    this.root.classList.remove('perfect');
+    // Reinicia la animación.
+    void this.root.offsetWidth;
+    this.root.classList.add('perfect');
+  }
+}
+
+/** Fracción [0..1] del recorrido de la barra para `bars` en [1..5]. */
+function frac(bars: number): number {
+  return Math.max(0, Math.min(1, (bars - 1) / 4));
 }
 
 function resultKey(event: ShotEvent): string {
