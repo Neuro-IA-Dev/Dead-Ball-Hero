@@ -1,9 +1,14 @@
 import * as THREE from 'three';
 import { AimVisuals, PREVIEW_POWER } from '@/render/aim';
+import { ContactSelector } from '@/render/contact-selector';
 import { Flight } from '@/game/flight';
 import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
 import { ShotMachine, type ShotPhase, AZIMUTH_LIMIT } from '@/game/shot-machine';
-import { solveShot, horizontalAzimuthDir } from '@/game/shot-solver';
+import {
+  solveShot,
+  horizontalAzimuthDir,
+  classifyContact,
+} from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD } from '@/core/ballistics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
@@ -19,6 +24,8 @@ import { playKick } from '@/core/audio';
  */
 
 const KEY_AZIMUTH_STEP = 0.03;
+const CONTACT_POINTER_SENS = 0.006; // por píxel de arrastre
+const CONTACT_KEY_STEP = 0.12; // WASD
 
 // Cámara de apuntado (encuadre tipo referente: baja, detrás y al costado).
 const CAM_BACK = 5;
@@ -32,6 +39,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 export class Game {
   private machine = new ShotMachine();
   private aimVisuals: AimVisuals;
+  private contactSelector: ContactSelector;
   private hud: Hud;
   private kicker: Kicker = DEFAULT_KICKER;
 
@@ -51,8 +59,8 @@ export class Game {
   ) {
     this.ballStart = ball.position.clone();
     this.aimVisuals = new AimVisuals(scene);
+    this.contactSelector = new ContactSelector(scene, this.ballStart);
     this.hud = new Hud(hudRoot);
-    this.hud.contact.onChange = (x, y) => this.machine.setContact(x, y);
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
     this.machine.setRunupMs(this.kicker.runupMs);
     this.bindInput();
@@ -80,6 +88,7 @@ export class Game {
       case 'CONTACT':
       case 'POWERING':
         this.updateAimCamera();
+        this.updateContactSelector();
         this.updateProjection();
         if (this.machine.phase === 'POWERING') {
           this.hud.power.setValue(this.machine.power);
@@ -116,6 +125,13 @@ export class Game {
     this.camera.lookAt(target);
   }
 
+  private updateContactSelector(): void {
+    const c = this.machine.contact;
+    this.contactSelector.setContact(c.x, c.y);
+    this.contactSelector.update(this.camera);
+    this.hud.setContactType(t(`shot.${classifyContact(c, this.kicker)}`));
+  }
+
   private updateProjection(): void {
     const power =
       this.machine.phase === 'POWERING' ? this.machine.power : PREVIEW_POWER;
@@ -148,30 +164,33 @@ export class Game {
         this.flight = null;
         this.ball.position.copy(this.ballStart);
         this.aimVisuals.setVisible(true);
-        this.hud.contact.setVisible(false);
+        this.contactSelector.setVisible(true);
         this.hud.power.setVisible(false);
         this.hud.setResult(null);
         this.hud.setHint(t('hud.hintAim'));
         break;
       case 'CONTACT':
         this.aimVisuals.setVisible(true);
-        this.hud.contact.reset();
-        this.hud.contact.setVisible(true);
+        this.contactSelector.setVisible(true);
         this.hud.setHint(t('hud.hintContact'));
         break;
       case 'POWERING':
         this.aimVisuals.setVisible(true);
-        this.hud.contact.setVisible(false);
+        this.contactSelector.setVisible(true);
         this.hud.power.setVisible(true);
         this.hud.setHint(t('hud.hintPower'));
         break;
       case 'RUNUP':
         this.aimVisuals.setVisible(false);
+        this.contactSelector.setVisible(false);
+        this.hud.setContactType(null);
         this.hud.setHint('');
         break;
       case 'FLIGHT':
         this.launch();
         this.aimVisuals.setVisible(false);
+        this.contactSelector.setVisible(false);
+        this.hud.setContactType(null);
         this.hud.power.setVisible(false);
         playKick();
         break;
@@ -210,10 +229,26 @@ export class Game {
     this.machine.setAzimuth(norm * AZIMUTH_LIMIT);
   }
 
+  /** Movimiento del puntero: azimut en AIMING, contacto (relativo) en CONTACT. */
+  private onPointerMove(e: PointerEvent): void {
+    if (this.machine.phase === 'AIMING') {
+      this.azimuthFromPointer(e.clientX);
+    } else if (this.machine.phase === 'CONTACT') {
+      const c = this.machine.contact;
+      this.machine.setContact(
+        c.x + e.movementX * CONTACT_POINTER_SENS,
+        c.y - e.movementY * CONTACT_POINTER_SENS,
+      );
+    }
+  }
+
+  private nudgeContact(dx: number, dy: number): void {
+    const c = this.machine.contact;
+    this.machine.setContact(c.x + dx, c.y + dy);
+  }
+
   private bindInput(): void {
-    this.canvas.addEventListener('pointermove', (e) =>
-      this.azimuthFromPointer(e.clientX),
-    );
+    this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
     // pointerdown/up en window para que también funcione sobre el HUD.
     window.addEventListener('pointerdown', (e) => {
       this.azimuthFromPointer(e.clientX);
@@ -236,6 +271,19 @@ export class Game {
           break;
         case 'ArrowRight':
           this.machine.nudgeAzimuth(KEY_AZIMUTH_STEP);
+          break;
+        // WASD: punto de contacto (en CONTACT).
+        case 'KeyA':
+          this.nudgeContact(-CONTACT_KEY_STEP, 0);
+          break;
+        case 'KeyD':
+          this.nudgeContact(CONTACT_KEY_STEP, 0);
+          break;
+        case 'KeyW':
+          this.nudgeContact(0, CONTACT_KEY_STEP);
+          break;
+        case 'KeyS':
+          this.nudgeContact(0, -CONTACT_KEY_STEP);
           break;
         default:
           break;

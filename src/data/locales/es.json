@@ -68,9 +68,13 @@
     "caida": "Caída",
     "knuckle": "Knuckleball",
     "trivela": "Trivela",
-    "raso": "Raso",
+    "raso": "RASO",
     "bajo_barrera": "Por debajo de la barrera",
-    "globo": "Globo"
+    "globo": "Globo",
+    "chanfle_interior": "CHANFLE CON EL INTERIOR DEL PIE",
+    "chanfle_exterior": "CHANFLE CON EL EXTERIOR DEL PIE",
+    "picada": "PICADA",
+    "normal": "GOLPE NATURAL"
   },
   "stars": {
     "one": "Anota el gol",

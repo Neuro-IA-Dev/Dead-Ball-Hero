@@ -3,32 +3,46 @@ import type { ShotEvent } from '@/core/collisions';
 
 /**
  * HUD overlay (HTML/CSS) sobre el canvas.
- * 1.6: hint + resultado · 1.7: grilla de contacto · 1.8/1.9b: barra única de
- * potencia (sin timing). Todos los textos pasan por `t()` (CLAUDE.md).
+ * - hint de fase + mensaje de resultado
+ * - etiqueta del tipo de golpe (1.9b.3): franja inferior en mayúsculas; el
+ *   selector de contacto en sí vive en el mundo 3D (`render/contact-selector`).
+ * - barra única de potencia (sin timing).
+ * Todos los textos pasan por `t()` (CLAUDE.md).
  */
 export class Hud {
   private root: HTMLElement;
   private hintEl: HTMLElement;
   private messageEl: HTMLElement;
-  readonly contact: ContactPad;
+  private contactLabelEl: HTMLElement;
   readonly power: PowerBar;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.hintEl = el('div', 'hud-hint');
     this.messageEl = el('div', 'hud-message');
-    this.contact = new ContactPad();
+    this.contactLabelEl = el('div', 'contact-label');
     this.power = new PowerBar();
     this.root.append(
       this.hintEl,
       this.messageEl,
-      this.contact.root,
+      this.contactLabelEl,
       this.power.root,
     );
   }
 
   setHint(text: string): void {
     this.hintEl.textContent = text;
+  }
+
+  /** Etiqueta del tipo de golpe (mayúsculas) o null para ocultarla. */
+  setContactType(text: string | null): void {
+    if (!text) {
+      this.contactLabelEl.classList.remove('show');
+      this.contactLabelEl.textContent = '';
+      return;
+    }
+    this.contactLabelEl.textContent = text;
+    this.contactLabelEl.classList.add('show');
   }
 
   setResult(event: ShotEvent | null): void {
@@ -44,65 +58,9 @@ export class Hud {
 }
 
 /**
- * Grilla de contacto (1.7). Un balón grande en HUD con grilla 3×3; el
- * indicador define el punto de golpeo: X = curva izq/der, Y = elevación/raso.
- * Pointer-events activos solo en el pad.
- */
-export class ContactPad {
-  readonly root: HTMLElement;
-  private dot: HTMLElement;
-  private value = { x: 0, y: 0 };
-  /** Callback al mover el contacto (normalizado [-1,1], y+ = arriba). */
-  onChange?: (x: number, y: number) => void;
-
-  constructor() {
-    this.root = el('div', 'contact-pad');
-    const ball = el('div', 'contact-ball');
-    // Líneas de la grilla 3×3.
-    for (const cls of ['gl gv1', 'gl gv2', 'gl gh1', 'gl gh2']) {
-      ball.append(el('div', cls));
-    }
-    this.dot = el('div', 'contact-dot');
-    ball.append(this.dot);
-    this.root.append(ball);
-    this.bind(ball);
-    this.setValue(0, 0);
-  }
-
-  setVisible(v: boolean): void {
-    this.root.classList.toggle('show', v);
-  }
-
-  reset(): void {
-    this.setValue(0, 0);
-  }
-
-  private bind(ball: HTMLElement): void {
-    const update = (e: PointerEvent): void => {
-      const r = ball.getBoundingClientRect();
-      const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
-      const ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
-      this.setValue(nx, ny);
-      this.onChange?.(this.value.x, this.value.y);
-    };
-    ball.addEventListener('pointermove', (e) => {
-      if (this.root.classList.contains('show')) update(e);
-    });
-    ball.addEventListener('pointerdown', update);
-  }
-
-  private setValue(x: number, y: number): void {
-    this.value.x = clamp(x, -1, 1);
-    this.value.y = clamp(y, -1, 1);
-    // Posición del punto (y invertida para CSS).
-    this.dot.style.left = `${((this.value.x + 1) / 2) * 100}%`;
-    this.dot.style.top = `${((1 - this.value.y) / 2) * 100}%`;
-  }
-}
-
-/**
  * Barra de potencia de 5 segmentos (1.8). Muestra el llenado [1..5] y una
- * banda de "zona óptima" (~2.5–3.5 barras: el sweet spot de la curva clásica).
+ * banda de "zona óptima" (~2.5–3.5 barras). El brillo de "potencia perfecta"
+ * por tipo de golpe se añade en 1.9b.4.
  */
 export class PowerBar {
   readonly root: HTMLElement;
@@ -153,10 +111,6 @@ function resultKey(event: ShotEvent): string {
     case 'OUT':
       return 'result.out';
   }
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 function el(tag: string, className: string): HTMLElement {
