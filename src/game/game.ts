@@ -14,7 +14,7 @@ import {
   PERFECT_POWER_HALF,
 } from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD, traceTrajectory } from '@/core/ballistics';
-import { GOAL_HALF_WIDTH } from '@/core/field';
+import { GOAL_HALF_WIDTH, BALL_RADIUS } from '@/core/field';
 import { Hud } from '@/ui/hud';
 import { DebugOverlay } from '@/ui/debug-overlay';
 import { t } from '@/core/i18n';
@@ -102,7 +102,7 @@ export class Game {
   ) {
     this.ballStart = ball.position.clone();
     this.aimVisuals = new AimVisuals(scene);
-    this.contactSelector = new ContactSelector(scene, this.ballStart);
+    this.contactSelector = new ContactSelector(scene, this.ball);
     this.hud = new Hud(hudRoot);
     this.debug = new DebugOverlay(hudRoot);
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
@@ -286,7 +286,34 @@ export class Game {
       `power   ${input.power.toFixed(2)} (opt ${optimalPowerCenter(input.contact, this.kicker).toFixed(2)})`,
       `sigma   ${sigma.toFixed(4)} rad`,
       `cross   x=${final.pos.x.toFixed(2)}  y=${final.pos.y.toFixed(2)}`,
+      `selErr  ${this.contactCenterError()}`,
     ]);
+  }
+
+  /** Error de centrado del selector vs el balón, en píxeles y % del radio. */
+  private contactCenterError(): string {
+    const ballPx = this.projectPx(this.ball.position);
+    const right = new THREE.Vector3().setFromMatrixColumn(
+      this.camera.matrixWorld,
+      0,
+    );
+    const edgePx = this.projectPx(
+      this.ball.position.clone().addScaledVector(right, BALL_RADIUS),
+    );
+    const radiusPx = ballPx.distanceTo(edgePx);
+    const selCenter = this.contactSelector.getCenterWorld(new THREE.Vector3());
+    const errPx = ballPx.distanceTo(this.projectPx(selCenter));
+    const pct = radiusPx > 0 ? (errPx / radiusPx) * 100 : 0;
+    return `${errPx.toFixed(1)}px (${pct.toFixed(1)}% r)`;
+  }
+
+  /** Proyecta un punto del mundo a píxeles de pantalla. */
+  private projectPx(world: THREE.Vector3): THREE.Vector2 {
+    const v = world.clone().project(this.camera);
+    return new THREE.Vector2(
+      (v.x * 0.5 + 0.5) * window.innerWidth,
+      (-v.y * 0.5 + 0.5) * window.innerHeight,
+    );
   }
 
   private spinBall(dt: number): void {
