@@ -5,6 +5,7 @@ import {
   type BallState,
 } from '@/core/ballistics';
 import { speedForPower } from '@/core/physics';
+import { solveLaunchDirection } from '@/game/shot-solver';
 
 /**
  * Ayudas visuales del apuntado — tarea 1.6.
@@ -21,6 +22,7 @@ export class AimVisuals {
   readonly reticle: THREE.Group;
   readonly line: THREE.Line;
   private lineGeom: THREE.BufferGeometry;
+  private lastAim = { x: NaN, y: NaN };
 
   constructor(scene: THREE.Scene) {
     this.reticle = makeReticle();
@@ -56,11 +58,20 @@ export class AimVisuals {
   ): void {
     this.reticle.position.set(aim.x, aim.y, 0.02);
 
-    const target = new THREE.Vector3(aim.x, aim.y, 0);
-    const dir = target.clone().sub(ballPos).normalize();
+    // Recalcular la línea solo si la mira cambió (la bisección es cara).
+    if (
+      Math.abs(aim.x - this.lastAim.x) < 1e-3 &&
+      Math.abs(aim.y - this.lastAim.y) < 1e-3
+    ) {
+      return;
+    }
+    this.lastAim = { x: aim.x, y: aim.y };
+
+    const speed = speedForPower(PREVIEW_POWER);
+    const dir = solveLaunchDirection(ballPos, aim, speed);
     const initial: BallState = {
       pos: ballPos.clone(),
-      vel: dir.multiplyScalar(speedForPower(PREVIEW_POWER)),
+      vel: dir.multiplyScalar(speed),
       spin: new THREE.Vector3(0, 0, 0),
     };
     const { samples } = traceTrajectory(initial, {

@@ -4,9 +4,9 @@
 
 ## Estado actual
 **Fase:** 1 — MVP
-**Última sesión:** 2026-06-11 — Tareas 1.1 y 1.1b completadas (scaffold + i18n).
+**Última sesión:** 2026-06-11 — Tareas 1.1→1.9 completadas. **PRIMER TIRO JUGABLE** (apuntar→contacto→potencia→timing→vuelo→resultado, mouse/teclado). 19 tests verdes.
 **Bloqueos:** ninguno
-**Siguiente:** 1.2 (escena base: campo, arco, luces, cámara).
+**Siguiente:** 1.10 (barrera) — pero antes: **revisión del usuario de 1.9** (mapeo) en vivo, y luego 1.18 (calibración del feeling) sobre lo que falte.
 **Checkpoints de revisión con el usuario:** 1.9 (mapeo input→velocidad/spin) y 1.18 (calibración del feeling) se auditan juntos antes de cerrar Fase 1 — es donde se gana o pierde el "se siente como la consola". Avisar cuando haya algo jugable.
 
 ---
@@ -27,7 +27,7 @@
 - [x] 1.6 Apuntado: retícula movible (mouse/táctil/teclado), línea de trayectoria parcial cuya longitud viene del stat LÍNEA del pateador. _(2026-06-11: `render/aim.ts` (retícula + línea dashed truncada a `kicker.line`), `game/kicker.ts` (Diego), `game/flight.ts` (vuelo sub-stepped reutilizable), `game/game.ts` (controlador: apuntado por raycast al plano z=0 + teclado, disparo, vuelo, resultado), `ui/hud.ts` (hint + mensaje de resultado) + estilos. **Lanzamiento TEMP recto** (sin contacto/potencia/timing); se reemplaza en 1.9. App jugable: apuntar→disparar→GOAL/OUT→reintentar.)_
 - [x] 1.7 Grilla de contacto simplificada MVP: eje X = curva izq/der, eje Y = elevación/raso. HUD del balón con indicador. _(2026-06-11: `ContactPad` en `ui/hud.ts` (balón HUD con grilla 3×3 + punto rojo arrastrable, normaliza a [-1,1], y+ = arriba) + estilos. `game.ts` reescrito para conducir la `ShotMachine` por todo el flujo; `contact.onChange→machine.setContact`. El efecto del contacto en el vuelo se aplica en 1.9; aquí queda capturado y visible.)_
 - [x] 1.8 Barra de potencia de 5 segmentos (mantener/soltar) + ventana de timing verde (±80 ms) con feedback visual y sonoro. _(2026-06-11: `PowerBar` (llenado [1..5] + zona óptima 2.5–3.5 + divisores) y `TimingBar` (ventana verde fija ±80 ms + marca que barre + flash verde/rojo) en `ui/hud.ts` + estilos. `core/audio.ts` (Web Audio sintetizado: `playKick`/`playGreen`; los sonidos completos son 1.17). `game.ts` actualiza las barras en POWERING/TIMING y dispara el feedback al entrar en FLIGHT.)_
-- [ ] 1.9 Mapeo del resultado: (apuntado, contacto, potencia, timing) → velocidad inicial + spin. Error gaussiano que crece al fallar el verde y al exceder el rango óptimo de potencia. **⚑ REVISIÓN CON USUARIO** (auditar junto a 1.18).
+- [x] 1.9 Mapeo del resultado: (apuntado, contacto, potencia, timing) → velocidad inicial + spin. Error gaussiano que crece al fallar el verde y al exceder el rango óptimo de potencia. **⚑ REVISIÓN CON USUARIO** (auditar junto a 1.18). _(2026-06-11: `game/shot-solver.ts` con helpers puros y testeados: `solveLaunchDirection` (apuntado BALÍSTICO por bisección — compensa gravedad+drag), `contactToSpin` (X→comba lateral escala CUR, Y→caída/topspin), `dispersionSigma` (timing fuera del verde + potencia fuera de 2.5–3.5, aliviado por PRE; **0 si verde+óptimo ⇒ vuelo determinista**). `solveShot` aplica ruido gaussiano (Box–Muller, rng inyectable). `shot-solver.test.ts`: 6 casos. `game.launch()` ya usa el solver; `aim.ts` previsualiza con apuntado balístico (throttled).)_
 
 ### Mundo
 - [ ] 1.10 Barrera estática: N cápsulas según JSON del nivel, colisión = `WALL`.
@@ -60,4 +60,5 @@
 
 ## Notas de QA / feeling
 *(Claude Code: anota aquí cada ajuste de física o timing con su razón.)*
+- 2026-06-11 (1.9): solver con apuntado balístico (bisección sobre la elevación). Decisión: el azimut apunta directo a `aim.x` y la comba se añade como desviación intencional sobre esa base → la receta "apuntar al palo + contacto de comba" dobla hacia adentro. Tunables de feeling en `shot-solver.ts` (POWER_OPTIMAL 2.5–3.5, BASE_ANGLE_SIGMA 0.05, PRE_RELIEF 0.8, etc.) y en `physics.ts` (MAGNUS_S, MAX_CURVE_SPIN). **Sin calibrar contra gol real todavía (1.18).** Pendiente afinar con el usuario: sensibilidad de comba, castigo por timing, rango óptimo por tipo de tiro.
 - 2026-06-11 (1.3): `MAGNUS_S = 0.00169`. Razón: con S=0.00059 la comba a 25 m daba 1.05 m; Magnus es ~lineal en S, escalé ×(3.0/1.05). Test `ballistics.test.ts` verifica 2.5–3.5 m. Eje de spin vertical (0,ω,0) → comba lateral. Pendiente afinar en 1.18 con el tiro real (apuntado+contacto+timing).

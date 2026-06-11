@@ -3,8 +3,8 @@ import { AimVisuals } from '@/render/aim';
 import { Flight } from '@/game/flight';
 import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
 import { ShotMachine, type ShotPhase } from '@/game/shot-machine';
-import { DEFAULT_DRAG_CD, type BallState } from '@/core/ballistics';
-import { speedForPower } from '@/core/physics';
+import { solveShot } from '@/game/shot-solver';
+import { DEFAULT_DRAG_CD } from '@/core/ballistics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
 import { playKick, playGreen } from '@/core/audio';
@@ -153,17 +153,13 @@ export class Game {
     }
   }
 
-  /** TEMP (hasta 1.9): mira + potencia, sin spin. El mapeo real de
-   *  contacto/timing a velocidad+spin lo implementa el solver en 1.9. */
+  /** Mapeo input→velocidad+spin (1.9) y arranque del vuelo. */
   private launch(): void {
     const input = this.machine.getInput();
-    const target = new THREE.Vector3(input.aim.x, input.aim.y, 0);
-    const dir = target.clone().sub(this.ballStart).normalize();
-    const initial: BallState = {
-      pos: this.ballStart.clone(),
-      vel: dir.multiplyScalar(speedForPower(input.power)),
-      spin: new THREE.Vector3(0, 0, 0),
-    };
+    const initial = solveShot(input, {
+      ballPos: this.ballStart,
+      kicker: this.kicker,
+    });
     this.flight = new Flight(initial, { dragCd: DEFAULT_DRAG_CD });
   }
 
