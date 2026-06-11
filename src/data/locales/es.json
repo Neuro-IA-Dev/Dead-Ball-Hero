@@ -44,10 +44,9 @@
     "timing": "Timing",
     "wind": "Viento",
     "kicker": "Pateador",
-    "hintAim": "Apunta con el puntero · DISPARO para tirar",
-    "hintContact": "Elige el contacto · mantén DISPARO para cargar",
-    "hintPower": "Suelta DISPARO en la potencia deseada",
-    "hintTiming": "¡DISPARO en la zona verde!",
+    "hintAim": "Apunta (mueve · ←→) · DISPARO para elegir el contacto",
+    "hintContact": "Mueve el contacto (arrastra · WASD) · mantén DISPARO para cargar",
+    "hintPower": "Suelta en la potencia justa",
     "tapToContinue": "DISPARO para continuar"
   },
   "result": {
@@ -78,7 +77,7 @@
   },
   "stars": {
     "one": "Anota el gol",
-    "green_timing": "Anota con timing verde",
+    "perfect_power": "Anota con potencia perfecta",
     "all_attempts": "Convierte todos los intentos",
     "no_aid_line": "Anota sin línea de ayuda",
     "target": "Embócala en el {corner}",
@@ -123,8 +122,8 @@
       "brief": "Llegó el arquero. Donde él no llega es donde tú apuntas: las esquinas son tu nuevo hogar."
     },
     "a1n03": {
-      "name": "El verde",
-      "brief": "Diego te mira de brazos cruzados: 'La diferencia entre buenos y grandes es el timing'. Suelta y vuelve a presionar en la ventana verde."
+      "name": "La potencia justa",
+      "brief": "Diego te mira de brazos cruzados: 'Cualquiera le pega fuerte. Los grandes saben CUANTO'. Suelta la barra en el punto exacto y mira como brilla."
     },
     "a1n04": {
       "name": "La barrera",
