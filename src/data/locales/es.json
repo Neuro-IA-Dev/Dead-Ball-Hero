@@ -1,0 +1,129 @@
+{
+  "app": {
+    "title": "DEAD BALL HERO",
+    "tagline": "Domina el arte del tiro libre"
+  },
+  "common": {
+    "play": "Jugar",
+    "back": "Atrás",
+    "continue": "Continuar",
+    "retry": "Reintentar",
+    "next": "Siguiente",
+    "close": "Cerrar",
+    "locked": "Bloqueado",
+    "loading": "Cargando…"
+  },
+  "menu": {
+    "career": "Camino a la Leyenda",
+    "practice": "Práctica libre",
+    "minute93": "Minuto 93",
+    "selectLevel": "Elige un nivel",
+    "settings": "Ajustes",
+    "coins": "Monedas: {n}",
+    "starsOf": "{got}/{total} estrellas"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "language": "Idioma",
+    "sound": "Sonido",
+    "music": "Música",
+    "vibration": "Vibración",
+    "difficulty": "Dificultad",
+    "on": "Activado",
+    "off": "Desactivado"
+  },
+  "hud": {
+    "attempts": "Intentos",
+    "attemptsLeft": "Intentos: {n}",
+    "goals": "Goles: {scored}/{needed}",
+    "minute": "{min}'",
+    "score": "{home} - {away}",
+    "aim": "Apuntar",
+    "contact": "Contacto",
+    "power": "Potencia",
+    "timing": "Timing",
+    "wind": "Viento",
+    "kicker": "Pateador"
+  },
+  "result": {
+    "goal": "¡GOOOOL!",
+    "saved": "¡Atajada!",
+    "post": "¡Al palo!",
+    "crossbar": "¡Al travesaño!",
+    "wall": "La barrera lo bloqueó",
+    "out": "Afuera",
+    "greenTiming": "¡Timing perfecto!",
+    "levelComplete": "¡Nivel superado!",
+    "levelFailed": "Sin intentos",
+    "starsEarned": "Estrellas: {n}/3",
+    "coinsEarned": "+{n} monedas"
+  },
+  "shot": {
+    "curva": "Curva",
+    "caida": "Caída",
+    "knuckle": "Knuckleball",
+    "trivela": "Trivela",
+    "raso": "Raso",
+    "bajo_barrera": "Por debajo de la barrera",
+    "globo": "Globo"
+  },
+  "stars": {
+    "one": "Anota el gol",
+    "green_timing": "Anota con timing verde",
+    "all_attempts": "Convierte todos los intentos",
+    "no_aid_line": "Anota sin línea de ayuda",
+    "target": "Embócala en el {corner}",
+    "kick": "Anota con {kick}"
+  },
+  "corner": {
+    "TL": "ángulo superior izquierdo",
+    "TR": "ángulo superior derecho",
+    "BL": "ángulo inferior izquierdo",
+    "BR": "ángulo inferior derecho"
+  },
+  "weather": {
+    "clear": "Despejado",
+    "rain": "Lluvia",
+    "night": "Noche"
+  },
+  "acts": {
+    "1": "La Academia",
+    "2": "La Gira",
+    "3": "Minuto 93",
+    "4": "Leyenda"
+  },
+  "kickers": {
+    "diego": { "name": "Diego", "specialty": "Precisión colocada" },
+    "roberto": { "name": "Roberto", "specialty": "Trivela de potencia" },
+    "david": { "name": "David", "specialty": "Curva clásica" },
+    "andrea": { "name": "Andrea", "specialty": "La caída maldita" },
+    "juni": { "name": "Juni", "specialty": "Rey del knuckleball" },
+    "leo": { "name": "Leo", "specialty": "Finesse quirúrgica" },
+    "cris": { "name": "Cris", "specialty": "Knuckle moderno" },
+    "dinho": { "name": "Dinho", "specialty": "Por debajo / el globo" },
+    "sini": { "name": "Sini", "specialty": "Potencia pura zurda" },
+    "rogerio": { "name": "Rogério", "specialty": "El arquero goleador" }
+  },
+  "levels": {
+    "a1n01": {
+      "name": "Primer contacto",
+      "brief": "Cancha vacía. Solo tú, la pelota y el arco. Aprende la barra de potencia: ni suave que no llegue, ni fuerte que se vaya a las nubes."
+    },
+    "a1n02": {
+      "name": "Las esquinas",
+      "brief": "Llegó el arquero. Donde él no llega es donde tú apuntas: las esquinas son tu nuevo hogar."
+    },
+    "a1n03": {
+      "name": "El verde",
+      "brief": "Diego te mira de brazos cruzados: 'La diferencia entre buenos y grandes es el timing'. Suelta y vuelve a presionar en la ventana verde."
+    },
+    "a1n04": {
+      "name": "La barrera",
+      "brief": "Cuatro gigantes entre tú y el gol. Apunta al costado del palo, dale tres barras y deja que la curva haga el resto."
+    },
+    "a1n05": {
+      "name": "El examen de Diego",
+      "brief": "Minuto 88, clásico de barrio empatado. Diego te entrega la pelota: 'Mostrame que aprendiste, pibe'. Tres goles y el Acto 2 es tuyo."
+    }
+  }
+}

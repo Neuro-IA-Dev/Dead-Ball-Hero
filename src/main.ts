@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import './style.css';
+import { initI18n, t } from '@/core/i18n';
 
 /**
- * Punto de entrada — tarea 1.1 (scaffold).
+ * Punto de entrada — tarea 1.1 (scaffold) + 1.1b (i18n).
  * Esto es un sanity-check del stack Three.js: un cubo girando que confirma
  * renderer + loop + resize. La escena real del juego (campo, arco, luces,
  * cámara detrás del tiro) llega en la tarea 1.2 y reemplaza este placeholder.
  */
+
+// i18n primero: detecta idioma del navegador y fija el locale (fallback es).
+initI18n();
+document.title = t('app.title');
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas');
 if (!canvas) {
