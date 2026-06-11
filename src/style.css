@@ -40,4 +40,45 @@ body,
   position: absolute;
   inset: 0;
   pointer-events: none;
+  color: #f4f7fb;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+
+.hud-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 8px 16px;
+  background: rgba(10, 14, 20, 0.5);
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hud-message {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%) scale(0.8);
+  font-size: clamp(32px, 9vw, 72px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.hud-message.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.hud-message.is-goal {
+  color: #2ecf6b;
 }

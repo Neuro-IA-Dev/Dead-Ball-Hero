@@ -24,7 +24,7 @@
 
 ### Input y mecánica de tiro
 - [x] 1.5 Máquina de estados del tiro: `AIMING → CONTACT_SELECT → POWERING → TIMING → FLIGHT → RESULT`. _(2026-06-11: `game/shot-machine.ts` framework-free: fases, `press()/release()/setAim()/setContact()/update(dtMs)`, carga de potencia (POWER_FILL_MS=1150) y ventana verde (±80 ms, centro 640). `getInput()` entrega aim/contact/power/timingError/green a 1.9. `shot-machine.test.ts`: 4 casos incl. recorrido completo, saturación y timing fallado.)_
-- [ ] 1.6 Apuntado: retícula movible (mouse/táctil/teclado), línea de trayectoria parcial cuya longitud viene del stat LÍNEA del pateador.
+- [x] 1.6 Apuntado: retícula movible (mouse/táctil/teclado), línea de trayectoria parcial cuya longitud viene del stat LÍNEA del pateador. _(2026-06-11: `render/aim.ts` (retícula + línea dashed truncada a `kicker.line`), `game/kicker.ts` (Diego), `game/flight.ts` (vuelo sub-stepped reutilizable), `game/game.ts` (controlador: apuntado por raycast al plano z=0 + teclado, disparo, vuelo, resultado), `ui/hud.ts` (hint + mensaje de resultado) + estilos. **Lanzamiento TEMP recto** (sin contacto/potencia/timing); se reemplaza en 1.9. App jugable: apuntar→disparar→GOAL/OUT→reintentar.)_
 - [ ] 1.7 Grilla de contacto simplificada MVP: eje X = curva izq/der, eje Y = elevación/raso. HUD del balón con indicador.
 - [ ] 1.8 Barra de potencia de 5 segmentos (mantener/soltar) + ventana de timing verde (±80 ms) con feedback visual y sonoro.
 - [ ] 1.9 Mapeo del resultado: (apuntado, contacto, potencia, timing) → velocidad inicial + spin. Error gaussiano que crece al fallar el verde y al exceder el rango óptimo de potencia. **⚑ REVISIÓN CON USUARIO** (auditar junto a 1.18).

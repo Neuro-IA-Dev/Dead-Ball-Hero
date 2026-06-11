@@ -43,7 +43,12 @@
     "power": "Potencia",
     "timing": "Timing",
     "wind": "Viento",
-    "kicker": "Pateador"
+    "kicker": "Pateador",
+    "hintAim": "Apunta con el puntero · DISPARO para tirar",
+    "hintContact": "Elige el contacto · mantén DISPARO para cargar",
+    "hintPower": "Suelta DISPARO en la potencia deseada",
+    "hintTiming": "¡DISPARO en la zona verde!",
+    "tapToContinue": "DISPARO para continuar"
   },
   "result": {
     "goal": "¡GOOOOL!",
