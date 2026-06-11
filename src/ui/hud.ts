@@ -1,15 +1,10 @@
 import { t } from '@/core/i18n';
 import type { ShotEvent } from '@/core/collisions';
-import {
-  TIMING_SWEEP_MS,
-  TIMING_GREEN_CENTER_MS,
-  TIMING_GREEN_HALF_MS,
-} from '@/game/shot-machine';
 
 /**
  * HUD overlay (HTML/CSS) sobre el canvas.
- * 1.6: hint + resultado · 1.7: grilla de contacto · 1.8: potencia + timing.
- * Todos los textos pasan por `t()` (CLAUDE.md).
+ * 1.6: hint + resultado · 1.7: grilla de contacto · 1.8/1.9b: barra única de
+ * potencia (sin timing). Todos los textos pasan por `t()` (CLAUDE.md).
  */
 export class Hud {
   private root: HTMLElement;
@@ -17,7 +12,6 @@ export class Hud {
   private messageEl: HTMLElement;
   readonly contact: ContactPad;
   readonly power: PowerBar;
-  readonly timing: TimingBar;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -25,13 +19,11 @@ export class Hud {
     this.messageEl = el('div', 'hud-message');
     this.contact = new ContactPad();
     this.power = new PowerBar();
-    this.timing = new TimingBar();
     this.root.append(
       this.hintEl,
       this.messageEl,
       this.contact.root,
       this.power.root,
-      this.timing.root,
     );
   }
 
@@ -143,42 +135,6 @@ export class PowerBar {
   setValue(bars: number): void {
     const tNorm = Math.max(0, Math.min(1, (bars - 1) / 4));
     this.fill.style.width = `${tNorm * 100}%`;
-  }
-}
-
-/**
- * Barra de timing (1.8). Una marca barre el track; la ventana verde (±80 ms)
- * está fija. Pulsar DISPARO dentro = timing perfecto. Flashea al capturar.
- */
-export class TimingBar {
-  readonly root: HTMLElement;
-  private marker: HTMLElement;
-
-  constructor() {
-    this.root = el('div', 'timing-bar');
-    const track = el('div', 'timing-track');
-    const green = el('div', 'timing-green');
-    const center = TIMING_GREEN_CENTER_MS / TIMING_SWEEP_MS;
-    const half = TIMING_GREEN_HALF_MS / TIMING_SWEEP_MS;
-    green.style.left = `${(center - half) * 100}%`;
-    green.style.width = `${2 * half * 100}%`;
-    this.marker = el('div', 'timing-marker');
-    track.append(green, this.marker);
-    this.root.append(track);
-  }
-
-  setVisible(v: boolean): void {
-    this.root.classList.toggle('show', v);
-    if (v) this.root.classList.remove('hit-green', 'hit-miss');
-  }
-
-  /** Progreso del barrido [0..1]. */
-  setProgress(p: number): void {
-    this.marker.style.left = `${Math.max(0, Math.min(1, p)) * 100}%`;
-  }
-
-  flash(green: boolean): void {
-    this.root.classList.add(green ? 'hit-green' : 'hit-miss');
   }
 }
 

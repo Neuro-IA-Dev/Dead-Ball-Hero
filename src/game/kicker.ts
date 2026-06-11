@@ -15,6 +15,8 @@ export interface Kicker {
   knu: number; // knuckle
   /** Largo de la línea de ayuda, fracción [0..1] del vuelo previsualizado. */
   line: number;
+  /** Duración de la carrera (ms) antes del golpeo — firma visual del pateador. */
+  runupMs: number;
 }
 
 export const DIEGO: Kicker = {
@@ -25,6 +27,7 @@ export const DIEGO: Kicker = {
   cur: 92,
   knu: 60,
   line: 0.85, // "línea larga" (Acto 1, máxima ayuda)
+  runupMs: 600, // carrera corta (CLAUDE.md: firma visual de Diego)
 };
 
 export const DEFAULT_KICKER = DIEGO;

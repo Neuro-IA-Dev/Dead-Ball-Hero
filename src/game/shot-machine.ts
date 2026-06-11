@@ -1,26 +1,31 @@
 /**
- * Máquina de estados del tiro — tarea 1.5.
+ * Máquina de estados del tiro — tarea 1.5, reworkeada en 1.9b.1.
  *
- *   AIMING → CONTACT → POWERING → TIMING → FLIGHT → RESULT → (reset) AIMING
+ *   AIMING → CONTACT → POWERING → RUNUP → FLIGHT → RESULT → (reset) AIMING
  *
- * Conduce la secuencia del tiro libre del referente de consola:
- *   - AIMING: el puntero mueve la mira; DISPARO confirma.
- *   - CONTACT: el puntero elige el punto de golpeo en la grilla; mantener
- *     DISPARO confirma el contacto y empieza a cargar la potencia.
- *   - POWERING: mientras se mantiene DISPARO la barra sube; al soltar se fija.
- *   - TIMING: una marca barre; volver a pulsar DISPARO en la ventana verde.
+ * Replica la mecánica de la edición 26 del referente: UNA sola barra de
+ * mantener-soltar, SIN timing verde (sin doble toque).
+ *   - AIMING: el puntero apunta la dirección; DISPARO confirma.
+ *   - CONTACT: el puntero elige el punto de golpeo; mantener DISPARO confirma
+ *     el contacto y empieza a cargar la potencia.
+ *   - POWERING: mientras se mantiene DISPARO la barra sube; al SOLTAR se fija
+ *     la potencia. Si llega al tope sin soltar, dispara al máximo.
+ *   - RUNUP: corre el pateador (~0.5–0.8 s según su firma) y golpea solo.
  *   - FLIGHT: la física toma el control (1.3/1.4).
  *   - RESULT: se muestra el desenlace; reset() vuelve a AIMING.
  *
- * Esta clase es framework-free y testeable: no toca el DOM ni Three.js.
- * Los parámetros de potencia/timing (1.8) viven aquí porque son estado del tiro.
+ * Framework-free y testeable: no toca el DOM ni Three.js.
+ *
+ * NOTA (1.9b): el apuntado pasa a azimut en 1.9b.2 y el campo de timing sale de
+ * la fórmula de dispersión en 1.9b.4. Hasta entonces `green` queda en true para
+ * no introducir error tras quitar la fase TIMING.
  */
 
 export type ShotPhase =
   | 'AIMING'
   | 'CONTACT'
   | 'POWERING'
-  | 'TIMING'
+  | 'RUNUP'
   | 'FLIGHT'
   | 'RESULT';
 
@@ -31,7 +36,7 @@ export interface AimTarget {
 }
 
 export interface ContactPoint {
-  /** Grilla de contacto, normalizada [-1,1]. X=curva izq/der, Y=elevación/raso. */
+  /** Grilla de contacto, normalizada [-1,1]. X=lado, Y=alto/bajo. */
   x: number;
   y: number;
 }
@@ -41,25 +46,19 @@ export interface ShotInput {
   contact: ContactPoint;
   /** Potencia en barras [1..5] (fraccional). */
   power: number;
-  /** Error de timing en ms respecto al centro de la ventana verde (con signo). */
+  /** @deprecated sale en 1.9b.4; se mantiene en perfecto (0 / true). */
   timingErrorMs: number;
-  /** True si el timing cayó dentro de la ventana verde. */
   green: boolean;
 }
 
-// --- Parámetros de potencia y timing (1.8; calibrables en 1.18) ------------
+// --- Parámetros de potencia y carrera (calibrables en 1.18) ----------------
 
 export const POWER_MIN = 1;
 export const POWER_MAX = 5;
 /** Tiempo (ms) de mantener DISPARO para llenar de 1 a 5 barras. */
 export const POWER_FILL_MS = 1150;
-
-/** Duración del barrido de timing (ms). */
-export const TIMING_SWEEP_MS = 1000;
-/** Centro de la ventana verde dentro del barrido (ms). */
-export const TIMING_GREEN_CENTER_MS = 640;
-/** Semiancho de la ventana verde: ±80 ms (CLAUDE.md). */
-export const TIMING_GREEN_HALF_MS = 80;
+/** Duración por defecto de la carrera del pateador (ms). */
+export const DEFAULT_RUNUP_MS = 600;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -74,13 +73,13 @@ export class ShotMachine {
   private _holding = false;
   private _powerElapsed = 0;
 
-  private _timingElapsed = 0;
-  private _timingErrorMs = TIMING_SWEEP_MS; // peor caso por defecto
-  private _green = false;
-  private _timingCaptured = false;
+  private _runupMs = DEFAULT_RUNUP_MS;
+  private _runupElapsed = 0;
 
   /** Callback opcional al cambiar de fase (HUD/sonido). */
   onPhaseChange?: (phase: ShotPhase, prev: ShotPhase) => void;
+  /** Callback al SOLTAR la potencia (para el feedback de potencia perfecta). */
+  onPowerReleased?: (power: number) => void;
 
   get phase(): ShotPhase {
     return this._phase;
@@ -94,9 +93,13 @@ export class ShotMachine {
   get power(): number {
     return this._power;
   }
-  /** Progreso del barrido de timing [0..1] (para el HUD). */
-  get timingProgress(): number {
-    return clamp(this._timingElapsed / TIMING_SWEEP_MS, 0, 1);
+  /** Progreso de la carrera [0..1] (para la animación del pateador). */
+  get runupProgress(): number {
+    return clamp(this._runupElapsed / this._runupMs, 0, 1);
+  }
+
+  setRunupMs(ms: number): void {
+    this._runupMs = Math.max(1, ms);
   }
 
   private setPhase(next: ShotPhase): void {
@@ -123,36 +126,28 @@ export class ShotMachine {
         this.setPhase('CONTACT');
         break;
       case 'CONTACT':
-        // Confirma contacto y empieza a cargar potencia.
         this._holding = true;
         this._powerElapsed = 0;
         this._power = POWER_MIN;
         this.setPhase('POWERING');
-        break;
-      case 'TIMING':
-        this.captureTiming();
         break;
       default:
         break;
     }
   }
 
-  /** Soltar DISPARO (pointerup / Space up). */
+  /** Soltar DISPARO (pointerup / Space up): fija potencia y arranca la carrera. */
   release(): void {
     if (this._phase === 'POWERING' && this._holding) {
-      this._holding = false;
-      this._timingElapsed = 0;
-      this._timingCaptured = false;
-      this.setPhase('TIMING');
+      this.lockPowerAndRun();
     }
   }
 
-  private captureTiming(): void {
-    if (this._timingCaptured) return;
-    this._timingCaptured = true;
-    this._timingErrorMs = this._timingElapsed - TIMING_GREEN_CENTER_MS;
-    this._green = Math.abs(this._timingErrorMs) <= TIMING_GREEN_HALF_MS;
-    this.setPhase('FLIGHT');
+  private lockPowerAndRun(): void {
+    this._holding = false;
+    this._runupElapsed = 0;
+    this.onPowerReleased?.(this._power);
+    this.setPhase('RUNUP');
   }
 
   /** Avanza relojes internos. `dtMs` en milisegundos. */
@@ -161,15 +156,11 @@ export class ShotMachine {
       this._powerElapsed += dtMs;
       const tNorm = clamp(this._powerElapsed / POWER_FILL_MS, 0, 1);
       this._power = POWER_MIN + tNorm * (POWER_MAX - POWER_MIN);
-    } else if (this._phase === 'TIMING') {
-      this._timingElapsed += dtMs;
-      if (this._timingElapsed >= TIMING_SWEEP_MS && !this._timingCaptured) {
-        // No pulsó a tiempo: dispara con el peor timing posible.
-        this._timingErrorMs = TIMING_SWEEP_MS;
-        this._green = false;
-        this._timingCaptured = true;
-        this.setPhase('FLIGHT');
-      }
+      // Tope sin soltar ⇒ dispara al máximo (igual que el referente).
+      if (tNorm >= 1) this.lockPowerAndRun();
+    } else if (this._phase === 'RUNUP') {
+      this._runupElapsed += dtMs;
+      if (this._runupElapsed >= this._runupMs) this.setPhase('FLIGHT');
     }
   }
 
@@ -183,8 +174,8 @@ export class ShotMachine {
       aim: this._aim,
       contact: this._contact,
       power: this._power,
-      timingErrorMs: this._timingErrorMs,
-      green: this._green,
+      timingErrorMs: 0,
+      green: true,
     };
   }
 
@@ -194,10 +185,7 @@ export class ShotMachine {
     this._power = POWER_MIN;
     this._holding = false;
     this._powerElapsed = 0;
-    this._timingElapsed = 0;
-    this._timingErrorMs = TIMING_SWEEP_MS;
-    this._green = false;
-    this._timingCaptured = false;
+    this._runupElapsed = 0;
     this.setPhase('AIMING');
   }
 }

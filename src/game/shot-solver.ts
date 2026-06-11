@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import type { ShotInput } from '@/game/shot-machine';
-import { TIMING_GREEN_HALF_MS } from '@/game/shot-machine';
 import type { Kicker } from '@/game/kicker';
 import {
   traceTrajectory,
@@ -48,6 +47,8 @@ export const POWER_OPTIMAL_HI = 3.5;
 /** Damping del topspin respecto al spin lateral máximo. */
 const TOPSPIN_SCALE = 0.7;
 
+/** @deprecated semiancho del extinto timing verde. Se elimina en 1.9b.4. */
+const TIMING_GREEN_HALF_MS = 80;
 /** ms de timing más allá del verde para llegar a "1.0" de error de timing. */
 const TIMING_MISS_FULL_MS = 220;
 /** barras fuera del óptimo para llegar a "1.0" de error de potencia. */

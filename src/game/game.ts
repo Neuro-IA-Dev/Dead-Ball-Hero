@@ -7,16 +7,14 @@ import { solveShot } from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD } from '@/core/ballistics';
 import { Hud } from '@/ui/hud';
 import { t } from '@/core/i18n';
-import { playKick, playGreen } from '@/core/audio';
+import { playKick } from '@/core/audio';
 
 /**
  * Controlador de juego — orquesta la `ShotMachine` con la escena, el input y
  * el HUD.
  *
- * Estado: 1.6 apuntado · 1.7 contacto. Flujo completo de la FSM cableado
- * (AIMING→CONTACT→POWERING→TIMING→FLIGHT→RESULT). El HUD de potencia/timing
- * llega en 1.8 y el mapeo real input→velocidad+spin en 1.9 (hoy: solver TEMP
- * que sólo usa mira + potencia).
+ * Flujo (edición 26, sin timing verde):
+ * AIMING→CONTACT→POWERING→RUNUP→FLIGHT→RESULT. Una sola barra de potencia.
  */
 
 const AIM_X_LIMIT = 6; // se puede apuntar afuera del palo (comba/trivela)
@@ -55,6 +53,7 @@ export class Game {
     this.hud = new Hud(hudRoot);
     this.hud.contact.onChange = (x, y) => this.machine.setContact(x, y);
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
+    this.machine.setRunupMs(this.kicker.runupMs);
     this.bindInput();
     this.onPhase('AIMING');
   }
@@ -80,10 +79,6 @@ export class Game {
         break;
       case 'POWERING':
         this.hud.power.setValue(this.machine.power);
-        break;
-      case 'TIMING':
-        this.hud.power.setValue(this.machine.power);
-        this.hud.timing.setProgress(this.machine.timingProgress);
         break;
       case 'FLIGHT':
         if (this.flight) {
@@ -117,7 +112,6 @@ export class Game {
         this.aimVisuals.setVisible(true);
         this.hud.contact.setVisible(false);
         this.hud.power.setVisible(false);
-        this.hud.timing.setVisible(false);
         this.hud.setResult(null);
         this.hud.setHint(t('hud.hintAim'));
         break;
@@ -130,23 +124,18 @@ export class Game {
       case 'POWERING':
         this.hud.contact.setVisible(false);
         this.hud.power.setVisible(true);
-        this.hud.timing.setVisible(false);
         this.hud.setHint(t('hud.hintPower'));
         break;
-      case 'TIMING':
-        this.hud.timing.setVisible(true);
-        this.hud.setHint(t('hud.hintTiming'));
+      case 'RUNUP':
+        // Potencia ya fijada: la barra queda visible mientras corre el pateador.
+        this.hud.setHint('');
         break;
       case 'FLIGHT':
         this.launch();
         this.hud.power.setVisible(false);
-        this.hud.timing.flash(this.machine.getInput().green);
-        this.hud.setHint('');
         playKick();
-        if (this.machine.getInput().green) playGreen();
         break;
       case 'RESULT':
-        this.hud.timing.setVisible(false);
         this.hud.setResult(this.flight?.event ?? 'OUT');
         this.hud.setHint(t('hud.tapToContinue'));
         break;

@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   ShotMachine,
   POWER_FILL_MS,
-  TIMING_GREEN_CENTER_MS,
+  DEFAULT_RUNUP_MS,
 } from './shot-machine';
 
-describe('ShotMachine — secuencia del tiro', () => {
-  it('recorre AIMING→CONTACT→POWERING→TIMING→FLIGHT→RESULT', () => {
+describe('ShotMachine — secuencia del tiro (edición 26, sin timing)', () => {
+  it('recorre AIMING→CONTACT→POWERING→RUNUP→FLIGHT→RESULT', () => {
     const m = new ShotMachine();
     expect(m.phase).toBe('AIMING');
 
@@ -19,37 +19,49 @@ describe('ShotMachine — secuencia del tiro', () => {
     expect(m.phase).toBe('POWERING');
 
     m.update(POWER_FILL_MS / 2); // ~media barra de carga
-    m.release();
-    expect(m.phase).toBe('TIMING');
+    m.release(); // suelta: fija potencia y arranca la carrera
+    expect(m.phase).toBe('RUNUP');
     expect(m.power).toBeGreaterThan(2);
     expect(m.power).toBeLessThan(4);
 
-    m.update(TIMING_GREEN_CENTER_MS); // justo en el centro verde
-    m.press();
+    m.update(DEFAULT_RUNUP_MS); // termina la carrera → golpeo automático
     expect(m.phase).toBe('FLIGHT');
-    expect(m.getInput().green).toBe(true);
 
     m.resolveFlight();
     expect(m.phase).toBe('RESULT');
   });
 
-  it('cargar al máximo satura en 5 barras', () => {
+  it('mantener hasta el tope dispara al máximo sin soltar', () => {
     const m = new ShotMachine();
     m.press();
     m.press();
-    m.update(POWER_FILL_MS * 2); // sobre-carga
+    m.update(POWER_FILL_MS * 1.2); // sobrepasa el tope sin soltar
     expect(m.power).toBeCloseTo(5, 5);
+    expect(m.phase).toBe('RUNUP'); // disparó solo
   });
 
-  it('no pulsar en TIMING dispara con timing fallado', () => {
+  it('onPowerReleased reporta la potencia al soltar', () => {
     const m = new ShotMachine();
+    let released = -1;
+    m.onPowerReleased = (p) => (released = p);
     m.press();
     m.press();
-    m.update(300);
+    m.update(POWER_FILL_MS / 4); // ~2 barras
     m.release();
-    m.update(2000); // deja pasar todo el barrido
+    expect(released).toBeGreaterThan(1.5);
+    expect(released).toBeLessThan(2.5);
+  });
+
+  it('respeta un runup personalizado del pateador', () => {
+    const m = new ShotMachine();
+    m.setRunupMs(300);
+    m.press();
+    m.press();
+    m.update(200);
+    m.release();
+    expect(m.phase).toBe('RUNUP');
+    m.update(310);
     expect(m.phase).toBe('FLIGHT');
-    expect(m.getInput().green).toBe(false);
   });
 
   it('reset vuelve a AIMING y conserva la mira', () => {
