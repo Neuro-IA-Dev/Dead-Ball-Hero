@@ -6,14 +6,17 @@ import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
 import { ShotMachine, type ShotPhase, AZIMUTH_LIMIT } from '@/game/shot-machine';
 import {
   solveShot,
+  buildInitialState,
+  dispersionSigma,
   horizontalAzimuthDir,
   classifyContact,
   optimalPowerCenter,
   isPerfectPower,
   PERFECT_POWER_HALF,
 } from '@/game/shot-solver';
-import { DEFAULT_DRAG_CD } from '@/core/ballistics';
+import { DEFAULT_DRAG_CD, traceTrajectory } from '@/core/ballistics';
 import { Hud } from '@/ui/hud';
+import { DebugOverlay } from '@/ui/debug-overlay';
 import { t } from '@/core/i18n';
 import { playKick, playPerfect } from '@/core/audio';
 
@@ -44,6 +47,7 @@ export class Game {
   private aimVisuals: AimVisuals;
   private contactSelector: ContactSelector;
   private hud: Hud;
+  private debug: DebugOverlay;
   private kicker: Kicker = DEFAULT_KICKER;
 
   private ballStart: THREE.Vector3;
@@ -64,6 +68,7 @@ export class Game {
     this.aimVisuals = new AimVisuals(scene);
     this.contactSelector = new ContactSelector(scene, this.ballStart);
     this.hud = new Hud(hudRoot);
+    this.debug = new DebugOverlay(hudRoot);
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
     this.machine.onPowerReleased = (power) => this.onPowerReleased(power);
     this.machine.setRunupMs(this.kicker.runupMs);
@@ -97,6 +102,7 @@ export class Game {
         if (this.machine.phase === 'POWERING') {
           this.hud.power.setValue(this.machine.power);
         }
+        if (this.debug.enabled) this.updateDebug();
         break;
       case 'RUNUP':
         this.updateAimCamera();
@@ -134,6 +140,30 @@ export class Game {
     this.contactSelector.setContact(c.x, c.y);
     this.contactSelector.update(this.camera);
     this.hud.setContactType(t(`shot.${classifyContact(c, this.kicker)}`));
+  }
+
+  /** Overlay de QA: azimut, contacto, potencia, sigma, cruce previsto en z=0. */
+  private updateDebug(): void {
+    const input = this.machine.getInput();
+    const type = classifyContact(input.contact, this.kicker);
+    const sigma = dispersionSigma(input, this.kicker);
+    const state = buildInitialState(input, {
+      ballPos: this.ballStart,
+      kicker: this.kicker,
+    });
+    const { final } = traceTrajectory(state, {
+      dragCd: DEFAULT_DRAG_CD,
+      stop: (s) => s.pos.z <= 0,
+    });
+    const deg = (this.machine.aim.azimuth * 180) / Math.PI;
+    this.debug.set([
+      `phase   ${this.machine.phase}`,
+      `azimut  ${deg.toFixed(1)}°`,
+      `contact ${input.contact.x.toFixed(2)}, ${input.contact.y.toFixed(2)}  ${type}`,
+      `power   ${input.power.toFixed(2)} (opt ${optimalPowerCenter(input.contact, this.kicker).toFixed(2)})`,
+      `sigma   ${sigma.toFixed(4)} rad`,
+      `cross   x=${final.pos.x.toFixed(2)}  y=${final.pos.y.toFixed(2)}`,
+    ]);
   }
 
   private updateProjection(): void {

@@ -152,6 +152,26 @@ body,
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* Overlay de debug (1.9b.6, ?debug=1) */
+.debug-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  font:
+    12px/1.5 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  color: #b8ffd0;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(57, 255, 136, 0.4);
+  border-radius: 6px;
+  white-space: pre;
+  pointer-events: none;
+}
+
 /* Flash dorado de "potencia perfecta" (1.9b.4) */
 .power-bar.perfect .power-track {
   animation: perfect-glow 0.55s ease-out;

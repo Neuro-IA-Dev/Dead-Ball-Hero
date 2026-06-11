@@ -76,14 +76,14 @@ export function classifyContact(
  * Acto 1 (~18–22 m); afinar en 1.18.
  */
 const BASE_ELEVATION: Record<ContactType, number> = {
-  chanfle_interior: 0.21,
-  chanfle_exterior: 0.18,
-  picada: 0.3,
-  raso: 0.11,
-  normal: 0.2,
+  chanfle_interior: 0.24,
+  chanfle_exterior: 0.22,
+  picada: 0.24,
+  raso: 0.17,
+  normal: 0.23,
 };
 /** Cuánto sube la elevación por unidad de contacto.Y. */
-const ELEV_PER_CONTACT_Y = 0.1;
+const ELEV_PER_CONTACT_Y = 0.08;
 /** Aplanamiento por barra de potencia sobre 3 (golpe más fuerte = más raso). */
 const ELEV_PER_POWER = 0.008;
 
@@ -92,7 +92,7 @@ const OPTIMAL_POWER: Record<ContactType, number> = {
   chanfle_interior: 2.75,
   chanfle_exterior: 2.5,
   picada: 2.75,
-  raso: 2.0,
+  raso: 3.0,
   normal: 2.75,
 };
 /** Semiancho (barras) de "potencia perfecta": dispersión cero dentro de él. */
