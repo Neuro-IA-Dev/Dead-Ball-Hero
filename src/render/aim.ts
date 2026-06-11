@@ -1,80 +1,105 @@
 import * as THREE from 'three';
 import { traceTrajectory, DEFAULT_DRAG_CD } from '@/core/ballistics';
-import { buildInitialState } from '@/game/shot-solver';
+import { buildInitialState, dispersionSigma } from '@/game/shot-solver';
 import type { Kicker } from '@/game/kicker';
 import type { ShotInput } from '@/game/shot-machine';
 
 /**
- * Línea de proyección del apuntado — tarea 1.6, reworkeada en 1.9b.2.
+ * Ayudas visuales del apuntado — tarea 1.6, revertidas al modelo de RETÍCULA
+ * en 1.9c.1.
  *
- * Sale DESDE EL BALÓN y muestra el primer tramo de la trayectoria REAL (con la
- * comba y la elevación del contacto actual), recalculada en vivo. Su longitud
- * es la fracción `line` del pateador (más línea = más fácil apuntar). NO hay
- * retícula sobre el arco: el gesto correcto es alinear la línea sobre/al
- * costado de la barrera.
+ * - **Retícula circular** (anillo verde) sobre el plano del arco (z=0) en el
+ *   punto apuntado. Su radio crece con la dispersión esperada del tiro.
+ * - **Línea de proyección** (verde, punteada) que sale DEL BALÓN y muestra el
+ *   primer tramo de la trayectoria REAL hacia la retícula (con la comba del
+ *   contacto incluida), recortada al stat LÍNEA del pateador.
+ *
+ * Regla de oro (CLAUDE.md): lo que se mueve al apuntar es LA MIRA y LA LÍNEA,
+ * jamás el escenario.
  */
 
-/** Potencia nominal para previsualizar antes de cargar la barra. */
-export const PREVIEW_POWER = 3;
-
-export interface AimPreview {
-  azimuth: number;
-  contact: { x: number; y: number };
-  power: number;
-}
+const RETICLE_BASE_RADIUS = 0.45; // m
+const RETICLE_SPREAD_K = 14; // m de radio extra por rad de sigma
 
 export class AimVisuals {
+  readonly reticle: THREE.Group;
   readonly line: THREE.Line;
+  private ring: THREE.Mesh;
   private lineGeom: THREE.BufferGeometry;
   private lastKey = '';
 
   constructor(scene: THREE.Scene) {
+    this.reticle = new THREE.Group();
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x39ff88,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    });
+    this.ring = new THREE.Mesh(makeRingGeometry(RETICLE_BASE_RADIUS), ringMat);
+    const dot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.06, 16),
+      new THREE.MeshBasicMaterial({ color: 0x39ff88, depthTest: false }),
+    );
+    this.reticle.add(this.ring, dot);
+    this.reticle.renderOrder = 10;
+
     this.lineGeom = new THREE.BufferGeometry();
     this.line = new THREE.Line(
       this.lineGeom,
       new THREE.LineDashedMaterial({
-        color: 0x39ff88, // verde, como en el referente
+        color: 0x39ff88,
         dashSize: 0.35,
         gapSize: 0.2,
         transparent: true,
         opacity: 0.95,
+        depthTest: false,
       }),
     );
     this.line.frustumCulled = false;
-    scene.add(this.line);
+    this.line.renderOrder = 9;
+
+    scene.add(this.reticle, this.line);
   }
 
   setVisible(v: boolean): void {
+    this.reticle.visible = v;
     this.line.visible = v;
   }
 
   /**
-   * Recalcula la línea con el apuntado/contacto/potencia actuales.
+   * Actualiza retícula y línea con el apuntado/contacto/potencia actuales.
    * @param lineFraction fracción [0..1] del vuelo a mostrar (stat LÍNEA).
    */
   update(
     ballPos: THREE.Vector3,
-    preview: AimPreview,
+    input: ShotInput,
     kicker: Kicker,
     lineFraction: number,
   ): void {
-    const key = `${preview.azimuth.toFixed(3)}|${preview.contact.x.toFixed(2)}|${preview.contact.y.toFixed(2)}|${preview.power.toFixed(2)}`;
+    // Retícula: posición siempre (barato); radio según dispersión.
+    this.reticle.position.set(input.aim.x, input.aim.y, 0.02);
+    const radius = RETICLE_BASE_RADIUS + RETICLE_SPREAD_K * dispersionSigma(input, kicker);
+    const s = radius / RETICLE_BASE_RADIUS;
+    this.ring.scale.set(s, s, 1);
+
+    // Línea: recalcular solo si cambió algo (la bisección es cara).
+    const key = `${input.aim.x.toFixed(2)}|${input.aim.y.toFixed(2)}|${input.contact.x.toFixed(2)}|${input.contact.y.toFixed(2)}|${input.power.toFixed(2)}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
 
-    const input: ShotInput = {
-      aim: { azimuth: preview.azimuth },
-      contact: preview.contact,
-      power: preview.power,
-    };
     const initial = buildInitialState(input, { ballPos, kicker });
     const { samples } = traceTrajectory(initial, {
       dragCd: DEFAULT_DRAG_CD,
-      stop: (s) => s.pos.z <= 0,
+      stop: (st) => st.pos.z <= 0,
     });
-
     const count = Math.max(2, Math.floor(samples.length * lineFraction));
     this.lineGeom.setFromPoints(samples.slice(0, count));
     this.line.computeLineDistances(); // necesario para el material dashed
   }
+}
+
+function makeRingGeometry(radius: number): THREE.RingGeometry {
+  return new THREE.RingGeometry(radius * 0.82, radius, 40);
 }

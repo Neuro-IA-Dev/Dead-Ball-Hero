@@ -29,10 +29,10 @@ export type ShotPhase =
   | 'FLIGHT'
   | 'RESULT';
 
-export interface AimState {
-  /** Azimut (rad): rotación de la dirección de tiro alrededor del balón.
-   *  0 = directo al centro del arco; + hacia +X (la derecha del arquero). */
-  azimuth: number;
+export interface AimTarget {
+  /** Punto de la retícula sobre el plano del arco (z=0), en metros. */
+  x: number;
+  y: number;
 }
 
 export interface ContactPoint {
@@ -42,7 +42,7 @@ export interface ContactPoint {
 }
 
 export interface ShotInput {
-  aim: AimState;
+  aim: AimTarget;
   contact: ContactPoint;
   /** Potencia en barras [1..5] (fraccional). */
   power: number;
@@ -57,16 +57,13 @@ export const POWER_FILL_MS = 1150;
 /** Duración por defecto de la carrera del pateador (ms). */
 export const DEFAULT_RUNUP_MS = 600;
 
-/** Límite del azimut (rad) a cada lado de la dirección al centro del arco. */
-export const AZIMUTH_LIMIT = 0.5;
-
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
 export class ShotMachine {
   private _phase: ShotPhase = 'AIMING';
-  private _aim: AimState = { azimuth: 0 };
+  private _aim: AimTarget = { x: 0, y: 1.1 };
   private _contact: ContactPoint = { x: 0, y: 0 };
 
   private _power = POWER_MIN;
@@ -84,7 +81,7 @@ export class ShotMachine {
   get phase(): ShotPhase {
     return this._phase;
   }
-  get aim(): AimState {
+  get aim(): AimTarget {
     return this._aim;
   }
   get contact(): ContactPoint {
@@ -109,15 +106,11 @@ export class ShotMachine {
     this.onPhaseChange?.(next, prev);
   }
 
-  /** Fija el azimut absoluto (rad). Solo en AIMING. */
-  setAzimuth(azimuth: number): void {
+  /** Fija la retícula (x,y en el plano del arco). Solo en AIMING.
+   *  El clamp de rangos lo hace quien llama (Game). */
+  setAim(x: number, y: number): void {
     if (this._phase !== 'AIMING') return;
-    this._aim = { azimuth: clamp(azimuth, -AZIMUTH_LIMIT, AZIMUTH_LIMIT) };
-  }
-
-  /** Ajuste relativo del azimut (arrastre / teclas). Solo en AIMING. */
-  nudgeAzimuth(delta: number): void {
-    this.setAzimuth(this._aim.azimuth + delta);
+    this._aim = { x, y };
   }
 
   setContact(x: number, y: number): void {

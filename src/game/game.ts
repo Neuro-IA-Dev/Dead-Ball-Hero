@@ -1,20 +1,20 @@
 import * as THREE from 'three';
-import { AimVisuals, PREVIEW_POWER } from '@/render/aim';
+import { AimVisuals } from '@/render/aim';
 import { ContactSelector } from '@/render/contact-selector';
 import { Flight } from '@/game/flight';
 import { DEFAULT_KICKER, type Kicker } from '@/game/kicker';
-import { ShotMachine, type ShotPhase, AZIMUTH_LIMIT } from '@/game/shot-machine';
+import { ShotMachine, type ShotPhase, type ShotInput } from '@/game/shot-machine';
 import {
   solveShot,
   buildInitialState,
   dispersionSigma,
-  horizontalAzimuthDir,
   classifyContact,
   optimalPowerCenter,
   isPerfectPower,
   PERFECT_POWER_HALF,
 } from '@/game/shot-solver';
 import { DEFAULT_DRAG_CD, traceTrajectory } from '@/core/ballistics';
+import { GOAL_HALF_WIDTH } from '@/core/field';
 import { Hud } from '@/ui/hud';
 import { DebugOverlay } from '@/ui/debug-overlay';
 import { t } from '@/core/i18n';
@@ -24,23 +24,32 @@ import { playKick, playPerfect } from '@/core/audio';
  * Controlador de juego — orquesta la `ShotMachine` con la escena, el input y
  * el HUD.
  *
- * Flujo (edición 26, sin timing verde):
- * AIMING→CONTACT→POWERING→RUNUP→FLIGHT→RESULT. Una sola barra de potencia.
- * Apuntado por azimut: el puntero/teclas rotan la dirección y la cámara orbita.
+ * Flujo (edición 26): AIMING→CONTACT→POWERING→RUNUP→FLIGHT→RESULT.
+ * Apuntado por RETÍCULA (1.9c): el puntero/teclas mueven la mira en el plano
+ * del arco; la cámara queda casi fija (el seguimiento amortiguado es 1.9c.2).
  */
 
-const KEY_AZIMUTH_STEP = 0.03;
+// Rango de la retícula sobre el plano del arco.
+const AIM_X_LIMIT = GOAL_HALF_WIDTH + 2; // ±2 m de margen fuera de los palos
+const AIM_Y_MIN = 0.2;
+const AIM_Y_MAX = 2.6;
+// Movimiento con teclas: cruzar el ancho del arco (~7.3 m) en ~1.2 s a tope.
+const MAX_AIM_SPEED = (GOAL_HALF_WIDTH * 2) / 1.2; // m/s
+const AIM_RAMP_S = 0.6; // rampa cuadrática hasta velocidad máxima
+
 const CONTACT_POINTER_SENS = 0.006; // por píxel de arrastre
 const CONTACT_KEY_STEP = 0.12; // WASD
 
-// Cámara de apuntado (encuadre tipo referente: baja, detrás y al costado).
-const CAM_BACK = 5;
-const CAM_HEIGHT = 1.7;
-const CAM_SIDE = 1.6;
-const CAM_SIDE_SIGN = 1; // a la derecha de la dirección de tiro (QA 1.9b.6)
-const LOOK_HEIGHT = 1.0;
+// Cámara fija (broadcast detrás del balón).
+const CAM_BACK = 5.5;
+const CAM_HEIGHT = 1.9;
+const CAM_LOOK_HEIGHT = 1.0;
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 export class Game {
   private machine = new ShotMachine();
@@ -53,8 +62,18 @@ export class Game {
   private ballStart: THREE.Vector3;
   private flight: Flight | null = null;
 
+  private raycaster = new THREE.Raycaster();
+  private goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private clock = new THREE.Clock();
   private spacePressed = false;
+
+  // Cámara base (fija) — 1.9c.2 le añade el seguimiento amortiguado.
+  private camBasePos = new THREE.Vector3();
+  private camBaseLook = new THREE.Vector3();
+
+  // Teclas de apuntado mantenidas + rampa.
+  private aimKeys = { left: false, right: false, up: false, down: false };
+  private aimHold = 0;
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -72,13 +91,29 @@ export class Game {
     this.machine.onPhaseChange = (phase) => this.onPhase(phase);
     this.machine.onPowerReleased = (power) => this.onPowerReleased(power);
     this.machine.setRunupMs(this.kicker.runupMs);
+    this.setupCamera();
     this.bindInput();
     this.onPhase('AIMING');
-    this.updateAimCamera();
   }
 
   start(): void {
     this.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  /** Cámara base fija: detrás del balón mirando al centro del arco. */
+  private setupCamera(): void {
+    const toGoal = new THREE.Vector3(
+      -this.ballStart.x,
+      0,
+      -this.ballStart.z,
+    ).normalize();
+    this.camBasePos
+      .copy(this.ballStart)
+      .addScaledVector(toGoal, -CAM_BACK)
+      .addScaledVector(UP, CAM_HEIGHT);
+    this.camBaseLook.set(0, CAM_LOOK_HEIGHT, 0);
+    this.camera.position.copy(this.camBasePos);
+    this.camera.lookAt(this.camBaseLook);
   }
 
   // --- Bucle ---------------------------------------------------------------
@@ -94,18 +129,21 @@ export class Game {
 
     switch (this.machine.phase) {
       case 'AIMING':
-      case 'CONTACT':
-      case 'POWERING':
-        this.updateAimCamera();
+        this.updateAimKeys(dt);
         this.updateContactSelector();
         this.updateProjection();
-        if (this.machine.phase === 'POWERING') {
-          this.hud.power.setValue(this.machine.power);
-        }
         if (this.debug.enabled) this.updateDebug();
         break;
-      case 'RUNUP':
-        this.updateAimCamera();
+      case 'CONTACT':
+        this.updateContactSelector();
+        this.updateProjection();
+        if (this.debug.enabled) this.updateDebug();
+        break;
+      case 'POWERING':
+        this.updateContactSelector();
+        this.updateProjection();
+        this.hud.power.setValue(this.machine.power);
+        if (this.debug.enabled) this.updateDebug();
         break;
       case 'FLIGHT':
         if (this.flight) {
@@ -120,19 +158,31 @@ export class Game {
     }
   }
 
-  /** Cámara baja detrás del balón, orbitando con el azimut. */
-  private updateAimCamera(): void {
-    const horiz = horizontalAzimuthDir(this.ballStart, this.machine.aim.azimuth);
-    const lateral = new THREE.Vector3().crossVectors(horiz, UP).normalize();
-    this.camera.position
-      .copy(this.ballStart)
-      .addScaledVector(horiz, -CAM_BACK)
-      .addScaledVector(UP, CAM_HEIGHT)
-      .addScaledVector(lateral, CAM_SIDE * CAM_SIDE_SIGN);
-    const dist = Math.hypot(this.ballStart.x, this.ballStart.z);
-    const target = this.ballStart.clone().addScaledVector(horiz, dist);
-    target.y = LOOK_HEIGHT;
-    this.camera.lookAt(target);
+  /** Movimiento de la retícula con flechas mantenidas (rampa cuadrática). */
+  private updateAimKeys(dt: number): void {
+    const k = this.aimKeys;
+    if (!(k.left || k.right || k.up || k.down)) {
+      this.aimHold = 0;
+      return;
+    }
+    this.aimHold += dt;
+    const ramp = Math.min(1, this.aimHold / AIM_RAMP_S);
+    const step = MAX_AIM_SPEED * ramp * ramp * dt; // cuadrática
+    const a = this.machine.aim;
+    let x = a.x;
+    let y = a.y;
+    if (k.left) x -= step;
+    if (k.right) x += step;
+    if (k.up) y += step;
+    if (k.down) y -= step;
+    this.setAim(x, y);
+  }
+
+  private setAim(x: number, y: number): void {
+    this.machine.setAim(
+      clamp(x, -AIM_X_LIMIT, AIM_X_LIMIT),
+      clamp(y, AIM_Y_MIN, AIM_Y_MAX),
+    );
   }
 
   private updateContactSelector(): void {
@@ -142,7 +192,26 @@ export class Game {
     this.hud.setContactType(t(`shot.${classifyContact(c, this.kicker)}`));
   }
 
-  /** Overlay de QA: azimut, contacto, potencia, sigma, cruce previsto en z=0. */
+  /** Input previsualizado: en POWERING usa la potencia real; si no, la óptima. */
+  private previewInput(): ShotInput {
+    const contact = this.machine.contact;
+    const power =
+      this.machine.phase === 'POWERING'
+        ? this.machine.power
+        : optimalPowerCenter(contact, this.kicker);
+    return { aim: this.machine.aim, contact, power };
+  }
+
+  private updateProjection(): void {
+    this.aimVisuals.update(
+      this.ballStart,
+      this.previewInput(),
+      this.kicker,
+      this.kicker.line,
+    );
+  }
+
+  /** Overlay de QA: retícula, contacto, potencia, sigma, cruce previsto. */
   private updateDebug(): void {
     const input = this.machine.getInput();
     const type = classifyContact(input.contact, this.kicker);
@@ -155,30 +224,14 @@ export class Game {
       dragCd: DEFAULT_DRAG_CD,
       stop: (s) => s.pos.z <= 0,
     });
-    const deg = (this.machine.aim.azimuth * 180) / Math.PI;
     this.debug.set([
       `phase   ${this.machine.phase}`,
-      `azimut  ${deg.toFixed(1)}°`,
+      `aim     x=${input.aim.x.toFixed(2)} y=${input.aim.y.toFixed(2)}`,
       `contact ${input.contact.x.toFixed(2)}, ${input.contact.y.toFixed(2)}  ${type}`,
       `power   ${input.power.toFixed(2)} (opt ${optimalPowerCenter(input.contact, this.kicker).toFixed(2)})`,
       `sigma   ${sigma.toFixed(4)} rad`,
       `cross   x=${final.pos.x.toFixed(2)}  y=${final.pos.y.toFixed(2)}`,
     ]);
-  }
-
-  private updateProjection(): void {
-    const power =
-      this.machine.phase === 'POWERING' ? this.machine.power : PREVIEW_POWER;
-    this.aimVisuals.update(
-      this.ballStart,
-      {
-        azimuth: this.machine.aim.azimuth,
-        contact: this.machine.contact,
-        power,
-      },
-      this.kicker,
-      this.kicker.line,
-    );
   }
 
   private spinBall(dt: number): void {
@@ -269,17 +322,24 @@ export class Game {
     this.machine.release();
   }
 
-  /** Azimut absoluto desde la X del puntero (centro pantalla = recto). */
-  private azimuthFromPointer(clientX: number): void {
+  /** Mueve la retícula al punto del plano del arco bajo el puntero (absoluto). */
+  private aimFromPointer(clientX: number, clientY: number): void {
     if (this.machine.phase !== 'AIMING') return;
-    const norm = (clientX / window.innerWidth) * 2 - 1; // [-1,1]
-    this.machine.setAzimuth(norm * AZIMUTH_LIMIT);
+    const ndc = new THREE.Vector2(
+      (clientX / window.innerWidth) * 2 - 1,
+      -((clientY / window.innerHeight) * 2 - 1),
+    );
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const hit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(this.goalPlane, hit)) {
+      this.setAim(hit.x, hit.y);
+    }
   }
 
-  /** Movimiento del puntero: azimut en AIMING, contacto (relativo) en CONTACT. */
+  /** Pointer move: mira en AIMING, contacto (relativo) en CONTACT. */
   private onPointerMove(e: PointerEvent): void {
     if (this.machine.phase === 'AIMING') {
-      this.azimuthFromPointer(e.clientX);
+      this.aimFromPointer(e.clientX, e.clientY);
     } else if (this.machine.phase === 'CONTACT') {
       const c = this.machine.contact;
       this.machine.setContact(
@@ -298,49 +358,76 @@ export class Game {
     this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
     // pointerdown/up en window para que también funcione sobre el HUD.
     window.addEventListener('pointerdown', (e) => {
-      this.azimuthFromPointer(e.clientX);
+      this.aimFromPointer(e.clientX, e.clientY);
       this.press();
     });
     window.addEventListener('pointerup', () => this.release());
 
-    window.addEventListener('keydown', (e) => {
-      switch (e.code) {
-        case 'Space':
-        case 'Enter':
-          e.preventDefault();
-          if (!this.spacePressed) {
-            this.spacePressed = true;
-            this.press();
-          }
-          break;
-        case 'ArrowLeft':
-          this.machine.nudgeAzimuth(-KEY_AZIMUTH_STEP);
-          break;
-        case 'ArrowRight':
-          this.machine.nudgeAzimuth(KEY_AZIMUTH_STEP);
-          break;
-        // WASD: punto de contacto (en CONTACT).
-        case 'KeyA':
-          this.nudgeContact(-CONTACT_KEY_STEP, 0);
-          break;
-        case 'KeyD':
-          this.nudgeContact(CONTACT_KEY_STEP, 0);
-          break;
-        case 'KeyW':
-          this.nudgeContact(0, CONTACT_KEY_STEP);
-          break;
-        case 'KeyS':
-          this.nudgeContact(0, -CONTACT_KEY_STEP);
-          break;
-        default:
-          break;
-      }
-    });
-    window.addEventListener('keyup', (e) => {
-      if (e.code === 'Space' || e.code === 'Enter') {
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
+    window.addEventListener('keyup', (e) => this.onKeyUp(e));
+  }
+
+  private onKeyDown(e: KeyboardEvent): void {
+    switch (e.code) {
+      case 'Space':
+      case 'Enter':
+        e.preventDefault();
+        if (!this.spacePressed) {
+          this.spacePressed = true;
+          this.press();
+        }
+        break;
+      case 'ArrowLeft':
+        this.aimKeys.left = true;
+        break;
+      case 'ArrowRight':
+        this.aimKeys.right = true;
+        break;
+      case 'ArrowUp':
+        this.aimKeys.up = true;
+        break;
+      case 'ArrowDown':
+        this.aimKeys.down = true;
+        break;
+      // WASD: punto de contacto (en CONTACT).
+      case 'KeyA':
+        this.nudgeContact(-CONTACT_KEY_STEP, 0);
+        break;
+      case 'KeyD':
+        this.nudgeContact(CONTACT_KEY_STEP, 0);
+        break;
+      case 'KeyW':
+        this.nudgeContact(0, CONTACT_KEY_STEP);
+        break;
+      case 'KeyS':
+        this.nudgeContact(0, -CONTACT_KEY_STEP);
+        break;
+      default:
+        break;
+    }
+  }
+
+  private onKeyUp(e: KeyboardEvent): void {
+    switch (e.code) {
+      case 'Space':
+      case 'Enter':
         this.spacePressed = false;
         this.release();
-      }
-    });
+        break;
+      case 'ArrowLeft':
+        this.aimKeys.left = false;
+        break;
+      case 'ArrowRight':
+        this.aimKeys.right = false;
+        break;
+      case 'ArrowUp':
+        this.aimKeys.up = false;
+        break;
+      case 'ArrowDown':
+        this.aimKeys.down = false;
+        break;
+      default:
+        break;
+    }
   }
 }

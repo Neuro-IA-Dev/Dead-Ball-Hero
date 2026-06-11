@@ -1,34 +1,28 @@
 import * as THREE from 'three';
 import type { ShotInput } from '@/game/shot-machine';
 import type { Kicker } from '@/game/kicker';
-import type { BallState } from '@/core/ballistics';
 import {
-  speedForPower,
-  MAX_CURVE_SPIN,
-  MAX_TOPSPIN,
-} from '@/core/physics';
+  traceTrajectory,
+  DEFAULT_DRAG_CD,
+  type BallState,
+} from '@/core/ballistics';
+import { speedForPower, MAX_CURVE_SPIN, MAX_TOPSPIN } from '@/core/physics';
 
 /**
- * Solver del tiro — tarea 1.9, reworkeado en 1.9b.2/1.9b.4.
+ * Solver del tiro — tarea 1.9, revertido al modelo de RETÍCULA en 1.9c.1.
  * **PUNTO DE AUDITORÍA (con 1.18).**
  *
- * Mapea (azimut, contacto, potencia) → estado inicial del balón (velocidad +
- * spin). Edición 26: NO hay timing; la maestría está en la potencia justa y en
- * alinear la línea de proyección.
+ * Mapea (retícula, contacto, potencia) → estado inicial del balón
+ * (velocidad + spin). El apuntado es una RETÍCULA en el plano del arco; la
+ * dirección base se resuelve por BISECCIÓN BALÍSTICA (`solveLaunchDirection`)
+ * para que el vuelo SIN spin cruce z=0 en la retícula. El contacto modula
+ * comba/caída SOBRE esa trayectoria (no la elevación base):
+ *   - contacto.x ⇒ comba lateral (spin sobre Y, escala con CUR).
+ *   - contacto.y ⇒ caída/topspin (spin sobre X) → la pelota baja respecto a la
+ *     retícula (la "maldita"); el jugador apunta un poco más alto.
  *
- * Convenciones de ejes (ver core/field.ts): +X derecha, +Z hacia el campo
+ * Convenciones de ejes (core/field.ts): +X derecha, +Z hacia el campo
  * (el balón viaja en -Z), +Y arriba.
- *
- * Dirección:
- *   - Azimut: rota la horizontal alrededor de Y (apuntado del usuario).
- *   - Elevación: NO la elige el usuario; se deriva de tipo de golpe +
- *     contacto.Y + potencia (tabla `BASE_ELEVATION`). El jugador ajusta la
- *     potencia para que la línea de proyección llegue al arco.
- *
- * Spin:
- *   - Comba lateral: spin sobre Y. Con v en -Z, ω=+Y desvía hacia -X.
- *     contacto.x>0 ⇒ comba a la izquierda (escala con CUR).
- *   - Caída/topspin: spin sobre X. contacto.y>0 ⇒ ωx<0 ⇒ la pelota cae.
  *
  * Dispersión: error gaussiano que crece con el error de potencia (1.9b.4) y se
  * reduce con PRE. Potencia perfecta ⇒ sigma=0 ⇒ vuelo determinista.
@@ -48,10 +42,7 @@ export type ContactType =
 const SIDE_THRESHOLD = 0.45;
 const VERT_THRESHOLD = 0.45;
 
-/**
- * Tipo de golpe según la zona del contacto y el pie del pateador.
- * Lo usan la etiqueta del selector (1.9b.3) y la elevación/óptimo de potencia.
- */
+/** Tipo de golpe según la zona del contacto y el pie del pateador. */
 export function classifyContact(
   contact: { x: number; y: number },
   kicker: Kicker,
@@ -70,28 +61,11 @@ export function classifyContact(
 
 // --- Tunables de calibración (1.18) ---------------------------------------
 
-/**
- * Elevación base de salida (rad) por tipo de golpe. El usuario NO la apunta;
- * el rango de la potencia hace el "ranging". Calibrado para distancias del
- * Acto 1 (~18–22 m); afinar en 1.18.
- */
-const BASE_ELEVATION: Record<ContactType, number> = {
-  chanfle_interior: 0.24,
-  chanfle_exterior: 0.22,
-  picada: 0.24,
-  raso: 0.17,
-  normal: 0.23,
-};
-/** Cuánto sube la elevación por unidad de contacto.Y. */
-const ELEV_PER_CONTACT_Y = 0.08;
-/** Aplanamiento por barra de potencia sobre 3 (golpe más fuerte = más raso). */
-const ELEV_PER_POWER = 0.008;
-
 /** Centro óptimo de potencia (barras) por tipo de golpe (recetas CLAUDE.md). */
 const OPTIMAL_POWER: Record<ContactType, number> = {
   chanfle_interior: 2.75,
   chanfle_exterior: 2.5,
-  picada: 2.75,
+  picada: 2.5,
   raso: 3.0,
   normal: 2.75,
 };
@@ -129,41 +103,51 @@ export function isPerfectPower(
   return Math.abs(power - optimalPowerCenter(contact, kicker)) <= PERFECT_POWER_HALF;
 }
 
-/** Elevación de salida (rad) a partir del tipo, el contacto.Y y la potencia. */
-export function elevationFor(
-  type: ContactType,
-  contactY: number,
-  power: number,
-): number {
-  return (
-    BASE_ELEVATION[type] +
-    contactY * ELEV_PER_CONTACT_Y -
-    (power - 3) * ELEV_PER_POWER
-  );
-}
-
 /**
- * Dirección horizontal del tiro según el azimut. Base = del balón al centro
- * del arco; azimut + desvía hacia +X (la derecha del arquero). Compartida por
- * el solver y la cámara de apuntado para que nunca diverjan.
+ * Apuntado BALÍSTICO (bisección): dirección de salida cuya trayectoria SIN spin
+ * cruza z=0 a la altura `aim.y`, con el azimut horizontal apuntando a `aim.x`.
+ * Es el modelo de apuntado del juego: balón → retícula. La comba se añade como
+ * desviación intencional (spin) sobre esta base.
  */
-export function horizontalAzimuthDir(
+export function solveLaunchDirection(
   ballPos: THREE.Vector3,
-  azimuth: number,
+  aim: { x: number; y: number },
+  speed: number,
+  dragCd: number = DEFAULT_DRAG_CD,
+  iters = 18,
+  dt = 1 / 120,
 ): THREE.Vector3 {
-  const horiz = new THREE.Vector3(-ballPos.x, 0, -ballPos.z).normalize();
-  return horiz.applyAxisAngle(UP, -azimuth);
-}
+  const horiz = new THREE.Vector3(aim.x - ballPos.x, 0, -ballPos.z).normalize();
 
-/** Dirección de salida desde el azimut (horizontal) y la elevación. */
-export function shotDirection(
-  ballPos: THREE.Vector3,
-  azimuth: number,
-  elevation: number,
-): THREE.Vector3 {
-  return horizontalAzimuthDir(ballPos, azimuth)
-    .multiplyScalar(Math.cos(elevation))
-    .addScaledVector(UP, Math.sin(elevation));
+  const yAtCross = (phi: number): number => {
+    const dir = horiz
+      .clone()
+      .multiplyScalar(Math.cos(phi))
+      .addScaledVector(UP, Math.sin(phi));
+    const { final } = traceTrajectory(
+      {
+        pos: ballPos.clone(),
+        vel: dir.multiplyScalar(speed),
+        spin: new THREE.Vector3(),
+      },
+      { dragCd, dt, stop: (s) => s.pos.z <= 0 },
+    );
+    return final.pos.y;
+  };
+
+  // Bisección monótona: la y de cruce crece con la elevación φ.
+  let lo = -0.35;
+  let hi = 1.1;
+  for (let i = 0; i < iters; i++) {
+    const mid = (lo + hi) / 2;
+    if (yAtCross(mid) < aim.y) lo = mid;
+    else hi = mid;
+  }
+  const phi = (lo + hi) / 2;
+  return horiz
+    .clone()
+    .multiplyScalar(Math.cos(phi))
+    .addScaledVector(UP, Math.sin(phi));
 }
 
 /** Spin (ω, rad/s) derivado del punto de contacto y el stat CUR del pateador. */
@@ -211,14 +195,13 @@ function gaussian(rng: () => number): number {
 }
 
 /**
- * Estado inicial DETERMINISTA (sin dispersión). Lo usan la línea de proyección
- * (1.9b.2) y `solveShot`. No muta `ctx`.
+ * Estado inicial DETERMINISTA (sin dispersión): apunta a la retícula por
+ * bisección y añade el spin del contacto. Lo usan la línea de proyección y
+ * `solveShot`. No muta `ctx`.
  */
 export function buildInitialState(input: ShotInput, ctx: SolveContext): BallState {
-  const type = classifyContact(input.contact, ctx.kicker);
-  const elevation = elevationFor(type, input.contact.y, input.power);
-  const dir = shotDirection(ctx.ballPos, input.aim.azimuth, elevation);
   const speed = speedForPower(input.power);
+  const dir = solveLaunchDirection(ctx.ballPos, input.aim, speed);
   const spin = contactToSpin(input.contact, ctx.kicker);
   return {
     pos: ctx.ballPos.clone(),

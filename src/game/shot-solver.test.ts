@@ -5,20 +5,20 @@ import {
   classifyContact,
   contactToSpin,
   dispersionSigma,
-  shotDirection,
-  elevationFor,
+  solveLaunchDirection,
   optimalPowerCenter,
   isPerfectPower,
 } from './shot-solver';
 import { DIEGO } from './kicker';
 import type { ShotInput } from './shot-machine';
 import { traceTrajectory, DEFAULT_DRAG_CD } from '@/core/ballistics';
+import { speedForPower } from '@/core/physics';
 
 const ballPos = () => new THREE.Vector3(0, 0.11, 20);
 
 function input(over: Partial<ShotInput> = {}): ShotInput {
   return {
-    aim: { azimuth: 0 },
+    aim: { x: 0, y: 1.2 },
     contact: { x: 0, y: 0 },
     power: optimalPowerCenter({ x: 0, y: 0 }, DIEGO), // normal: perfecto
     ...over,
@@ -35,21 +35,21 @@ describe('shot-solver — clasificación de contacto (Diego, zurdo)', () => {
   });
 });
 
+describe('shot-solver — apuntado balístico (retícula)', () => {
+  it('solveLaunchDirection hace que el vuelo sin spin cruce z=0 en la retícula', () => {
+    const aim = { x: 1.5, y: 1.8 };
+    const speed = speedForPower(3);
+    const dir = solveLaunchDirection(ballPos(), aim, speed);
+    const { final } = traceTrajectory(
+      { pos: ballPos(), vel: dir.multiplyScalar(speed), spin: new THREE.Vector3() },
+      { dragCd: DEFAULT_DRAG_CD, stop: (s) => s.pos.z <= 0 },
+    );
+    expect(final.pos.x).toBeCloseTo(aim.x, 1);
+    expect(final.pos.y).toBeCloseTo(aim.y, 1);
+  });
+});
+
 describe('shot-solver — helpers', () => {
-  it('shotDirection: azimut 0 va al arco (−Z); azimut + desvía a +X', () => {
-    const straight = shotDirection(ballPos(), 0, 0.2);
-    expect(straight.z).toBeLessThan(0);
-    expect(Math.abs(straight.x)).toBeLessThan(1e-9);
-    const right = shotDirection(ballPos(), 0.2, 0.2);
-    expect(right.x).toBeGreaterThan(0);
-  });
-
-  it('elevationFor crece con contacto.Y', () => {
-    const lo = elevationFor('normal', -0.5, 3);
-    const hi = elevationFor('normal', 0.5, 3);
-    expect(hi).toBeGreaterThan(lo);
-  });
-
   it('contacto derecha ⇒ spin.y>0 (comba); arriba ⇒ spin.x<0 (caída)', () => {
     expect(contactToSpin({ x: 0.8, y: 0 }, DIEGO).y).toBeGreaterThan(0);
     expect(contactToSpin({ x: 0, y: 0.8 }, DIEGO).x).toBeLessThan(0);
@@ -69,15 +69,17 @@ describe('shot-solver — helpers', () => {
 });
 
 describe('shot-solver — vuelo', () => {
-  it('tiro perfecto (recto, potencia óptima) es determinista y entra al arco', () => {
-    const state = solveShot(input(), { ballPos: ballPos(), kicker: DIEGO });
+  it('tiro perfecto a la retícula es determinista y cruza donde se apuntó', () => {
+    const state = solveShot(input({ aim: { x: 0, y: 1.2 } }), {
+      ballPos: ballPos(),
+      kicker: DIEGO,
+    });
     const { final } = traceTrajectory(state, {
       dragCd: DEFAULT_DRAG_CD,
       stop: (s) => s.pos.z <= 0,
     });
     expect(Math.abs(final.pos.x)).toBeLessThan(0.3); // sin desvío lateral
-    expect(final.pos.y).toBeGreaterThan(0);
-    expect(final.pos.y).toBeLessThan(2.44); // bajo el travesaño
+    expect(final.pos.y).toBeCloseTo(1.2, 1); // a la altura apuntada
   });
 
   it('contacto de comba desvía el cruce lateralmente (consistente)', () => {
