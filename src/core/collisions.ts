@@ -4,8 +4,8 @@ import {
   GOAL_HALF_WIDTH,
   GOAL_HEIGHT,
   GOAL_LINE_Z,
-  GOAL_DEPTH,
-  POST_RADIUS,
+  /* GOAL_DEPTH,
+   POST_RADIUS,*/
   BALL_RADIUS,
   FIELD_HALF_WIDTH,
 } from '@/core/field';
