@@ -176,6 +176,13 @@ export class ShotMachine {
     };
   }
 
+  /** Sólo para modos internos/debug: precarga mira/contacto/potencia sin tocar fases. */
+  seed(input: Partial<ShotInput>): void {
+    if (input.aim) this._aim = { ...input.aim };
+    if (input.contact) this._contact = { ...input.contact };
+    if (typeof input.power === 'number') this._power = input.power;
+  }
+
   /** Reinicia para el siguiente intento. Mantiene la mira anterior. */
   reset(): void {
     this._contact = { x: 0, y: 0 };

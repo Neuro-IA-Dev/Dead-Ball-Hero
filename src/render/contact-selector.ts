@@ -11,17 +11,19 @@ import { BALL_RADIUS } from '@/core/field';
  * Coordenadas de contacto: [-1,1] por eje, limitadas al rombo (|x|+|y| ≤ 1).
  */
 
-/** Semieje del rombo ≈ 2.5× el radio del balón. */
-const SIZE = 2.5 * BALL_RADIUS;
-const TILT = -Math.PI / 5; // inclinación del billboard (~36°)
+/** Semieje del overlay ≈ 1.55× el radio del balón para que se sienta "sobre" él. */
+const SIZE = 0.48 * BALL_RADIUS;
+const SURFACE_DEPTH = BALL_RADIUS * 0.98;
+const FRONT_OFFSET = BALL_RADIUS * 0.16;
+const TILT = 0;
 const GREEN = 0x39ff88;
 
-function clampDiamond(x: number, y: number): { x: number; y: number } {
+function clampContact(x: number, y: number): { x: number; y: number } {
   const cx = Math.max(-1, Math.min(1, x));
   const cy = Math.max(-1, Math.min(1, y));
-  const m = Math.abs(cx) + Math.abs(cy);
-  if (m <= 1) return { x: cx, y: cy };
-  return { x: cx / m, y: cy / m };
+  const len = Math.hypot(cx, cy);
+  if (len <= 1) return { x: cx, y: cy };
+  return { x: cx / len, y: cy / len };
 }
 
 export class ContactSelector {
@@ -33,10 +35,10 @@ export class ContactSelector {
   constructor(scene: THREE.Scene, ball: THREE.Object3D) {
     this.ball = ball;
     this.group = new THREE.Group();
-    this.group.add(makeGrid(), makeDiamond());
+    this.group.add(makeHalo(), makeSeams());
 
     this.dot = new THREE.Mesh(
-      new THREE.CircleGeometry(0.04, 20),
+      new THREE.CircleGeometry(0.026, 20),
       new THREE.MeshBasicMaterial({ color: 0xff3b3b, depthTest: false }),
     );
     this.dot.renderOrder = 12;
@@ -53,14 +55,20 @@ export class ContactSelector {
   }
 
   setContact(x: number, y: number): void {
-    const c = clampDiamond(x, y);
-    this.dot.position.set(c.x * SIZE, c.y * SIZE, 0.012);
-    this.cross.position.set(c.x * SIZE, c.y * SIZE, 0.014);
+    const c = clampContact(x, y);
+    const sx = c.x * SIZE;
+    const sy = c.y * SIZE;
+    const radial = Math.min(1, (sx * sx + sy * sy) / (BALL_RADIUS * BALL_RADIUS));
+    const surfaceZ = Math.sqrt(Math.max(0, 1 - radial));
+    this.dot.position.set(sx, sy, surfaceZ * SURFACE_DEPTH);
+    this.cross.position.set(sx, sy, surfaceZ * SURFACE_DEPTH + 0.01);
   }
 
   /** Re-ancla al centro del balón y orienta el billboard (cada frame). */
   update(camera: THREE.Camera): void {
     this.ball.getWorldPosition(this.group.position);
+    const camDir = camera.getWorldDirection(new THREE.Vector3()).normalize();
+    this.group.position.addScaledVector(camDir, -FRONT_OFFSET);
     this.group.quaternion.copy(camera.quaternion);
     this.group.rotateX(TILT);
   }
@@ -71,13 +79,26 @@ export class ContactSelector {
   }
 }
 
-function makeGrid(): THREE.LineSegments {
+function makeHalo(): THREE.Mesh {
+  return new THREE.Mesh(
+    new THREE.CircleGeometry(SIZE * 0.96, 24),
+    new THREE.MeshBasicMaterial({
+      color: GREEN,
+      transparent: true,
+      opacity: 0.025,
+      depthTest: false,
+    }),
+  );
+}
+
+function makeSeams(): THREE.LineSegments {
   const pts: number[] = [];
-  const n = 5;
-  for (let i = 0; i < n; i++) {
-    const t = -SIZE + (2 * SIZE * i) / (n - 1);
-    pts.push(-SIZE, t, 0, SIZE, t, 0);
-    pts.push(t, -SIZE, 0, t, SIZE, 0);
+  const n = 3;
+  for (let i = 1; i < n; i++) {
+    const t = -SIZE + (2 * SIZE * i) / n;
+    const chord = Math.sqrt(Math.max(0, SIZE * SIZE - t * t));
+    pts.push(-chord, t, 0, chord, t, 0);
+    pts.push(t, -chord, 0, t, chord, 0);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
@@ -86,7 +107,7 @@ function makeGrid(): THREE.LineSegments {
     new THREE.LineBasicMaterial({
       color: GREEN,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.1,
       depthTest: false,
     }),
   );
@@ -94,26 +115,9 @@ function makeGrid(): THREE.LineSegments {
   return ls;
 }
 
-function makeDiamond(): THREE.LineLoop {
-  const pts = [SIZE, 0, 0, 0, SIZE, 0, -SIZE, 0, 0, 0, -SIZE, 0];
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  const loop = new THREE.LineLoop(
-    geo,
-    new THREE.LineBasicMaterial({
-      color: GREEN,
-      transparent: true,
-      opacity: 0.85,
-      depthTest: false,
-    }),
-  );
-  loop.renderOrder = 11;
-  return loop;
-}
-
 function makeCross(): THREE.Group {
   const g = new THREE.Group();
-  const s = 0.035;
+  const s = 0.018;
   const pts = [-s, 0, 0, s, 0, 0, 0, -s, 0, 0, s, 0];
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));

@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { stepBall, type BallState, type FlightParams } from '@/core/ballistics';
+import {
+  stepBall,
+  FIXED_TIMESTEP,
+  type BallState,
+  type FlightParams,
+} from '@/core/ballistics';
 import { ShotCollider, type ShotEvent, type CrossInfo } from '@/core/collisions';
 
 /**
@@ -7,8 +12,7 @@ import { ShotCollider, type ShotEvent, type CrossInfo } from '@/core/collisions'
  * y reporta el evento terminal vía el colisionador. Lo usa el controlador de
  * juego desde la fase FLIGHT (1.6+); la cámara de seguimiento es 1.12.
  */
-const FIXED_STEP = 1 / 120;
-const MAX_FLIGHT_TIME = 8; // s, salvaguarda anti-bucle → OUT
+const MAX_FLIGHT_TIME = 5; // s, salvaguarda anti-bucle → OUT (rest-detection resuelve antes)
 
 export class Flight {
   readonly state: BallState;
@@ -16,7 +20,7 @@ export class Flight {
   cross: CrossInfo | undefined;
   done = false;
 
-  private collider = new ShotCollider();
+  private collider: ShotCollider;
   private acc = 0;
   private elapsed = 0;
   private params: FlightParams;
@@ -28,6 +32,7 @@ export class Flight {
       spin: initial.spin.clone(),
     };
     this.params = params;
+    this.collider = new ShotCollider(params.groundBounceScale ?? 1, params.barrier);
     this.collider.begin(this.state);
   }
 
@@ -35,12 +40,12 @@ export class Flight {
   step(dt: number): void {
     if (this.done) return;
     this.acc += Math.min(dt, 0.1); // evita saltos enormes si hay lag
-    while (this.acc >= FIXED_STEP) {
-      stepBall(this.state, FIXED_STEP, this.params);
-      this.acc -= FIXED_STEP;
-      this.elapsed += FIXED_STEP;
+    while (this.acc >= FIXED_TIMESTEP) {
+      stepBall(this.state, FIXED_TIMESTEP, this.params);
+      this.acc -= FIXED_TIMESTEP;
+      this.elapsed += FIXED_TIMESTEP;
 
-      const r = this.collider.update(this.state);
+      const r = this.collider.update(this.state, FIXED_TIMESTEP);
       if (r.event) {
         this.finish(r.event, r.cross);
         return;
@@ -56,6 +61,10 @@ export class Flight {
     this.event = event;
     this.cross = cross;
     this.done = true;
+  }
+
+  forceFinish(event: ShotEvent, cross: CrossInfo | undefined): void {
+    this.finish(event, cross);
   }
 
   /** Posición actual del balón (para mover el mesh). */

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "a1-n01", "act": 1, "order": 1,
+    "nameKey": "levels.a1n01.name", "briefKey": "levels.a1n01.brief",
+    "ball": { "x": 0, "z": 18 },
+    "attempts": 5, "goalsNeeded": 1,
+    "scenario": { "minute": 0, "scoreHome": 0, "scoreAway": 0, "playerIsHome": true, "weather": "clear", "crowdIntensity": 0 },
+    "wall": null, "keeper": null,
+    "aidLineOverride": 1.0,
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "all_attempts" } },
+    "rewardCoins": 50
+  },
+  {
+    "id": "a1-n02", "act": 1, "order": 2,
+    "nameKey": "levels.a1n02.name", "briefKey": "levels.a1n02.brief",
+    "ball": { "x": 0, "z": 20 },
+    "attempts": 5, "goalsNeeded": 2,
+    "scenario": { "minute": 0, "scoreHome": 0, "scoreAway": 0, "playerIsHome": true, "weather": "clear", "crowdIntensity": 0 },
+    "wall": null,
+    "keeper": { "reactionMs": 340, "diveSpeed": 6.5 },
+    "aidLineOverride": 1.0,
+    "stars": { "two": { "type": "target", "corner": "TR", "radius": 1.0 }, "three": { "type": "target", "corner": "TL", "radius": 1.0 } },
+    "rewardCoins": 60
+  },
+  {
+    "id": "a1-n03", "act": 1, "order": 3,
+    "nameKey": "levels.a1n03.name", "briefKey": "levels.a1n03.brief",
+    "ball": { "x": 0, "z": 20 },
+    "attempts": 4, "goalsNeeded": 2,
+    "scenario": { "minute": 0, "scoreHome": 0, "scoreAway": 0, "playerIsHome": true, "weather": "clear", "crowdIntensity": 1 },
+    "wall": null,
+    "keeper": { "reactionMs": 320, "diveSpeed": 7.0 },
+    "aidLineOverride": 0.8,
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "all_attempts" } },
+    "rewardCoins": 70
+  },
+  {
+    "id": "a1-n04", "act": 1, "order": 4,
+    "nameKey": "levels.a1n04.name", "briefKey": "levels.a1n04.brief",
+    "ball": { "x": -4, "z": 20 },
+    "attempts": 4, "goalsNeeded": 1,
+    "scenario": { "minute": 0, "scoreHome": 0, "scoreAway": 0, "playerIsHome": true, "weather": "clear", "crowdIntensity": 1 },
+    "wall": { "players": 4, "distance": 9.15, "jumpChance": 0.4 },
+    "keeper": { "reactionMs": 320, "diveSpeed": 7.0 },
+    "aidLineOverride": 0.8,
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "kick", "kick": "curva" } },
+    "rewardCoins": 80
+  },
+  {
+    "id": "a1-n05", "act": 1, "order": 5,
+    "nameKey": "levels.a1n05.name", "briefKey": "levels.a1n05.brief",
+    "ball": { "x": 0, "z": 22 },
+    "attempts": 5, "goalsNeeded": 3,
+    "scenario": { "minute": 88, "scoreHome": 1, "scoreAway": 1, "playerIsHome": true, "weather": "night", "crowdIntensity": 2 },
+    "wall": { "players": 5, "distance": 9.15, "jumpChance": 0.5 },
+    "keeper": { "reactionMs": 300, "diveSpeed": 7.2 },
+    "forcedKicker": "diego",
+    "aidLineOverride": 0.7,
+    "stars": { "two": { "type": "perfect_power" }, "three": { "type": "target", "corner": "TR", "radius": 1.2 } },
+    "rewardCoins": 150
+  }
+]

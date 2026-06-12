@@ -30,4 +30,10 @@ export const DIEGO: Kicker = {
   runupMs: 600, // carrera corta (CLAUDE.md: firma visual de Diego)
 };
 
+export const TRAINING_RIGHT_FOOT: Kicker = {
+  ...DIEGO,
+  id: 'training-right',
+  foot: 'R',
+};
+
 export const DEFAULT_KICKER = DIEGO;

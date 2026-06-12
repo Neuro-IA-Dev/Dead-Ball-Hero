@@ -7,6 +7,7 @@ import {
   FIELD_DEPTH,
   FIELD_HALF_WIDTH,
 } from '@/core/field';
+import { buildStadium } from '@/render/stadium';
 
 /**
  * Mundo visual — tarea 1.2.
@@ -108,11 +109,64 @@ function buildGoal(): { group: THREE.Group; net: THREE.LineSegments } {
   return { group: goal, net };
 }
 
+/** Líneas reglamentarias del campo (área, área chica, arco y punto penal). */
+function buildPitchMarkings(): THREE.Group {
+  const g = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+  const y = 0.02;
+  const line = (pts: [number, number][]): void => {
+    const geo = new THREE.BufferGeometry().setFromPoints(
+      pts.map(([x, z]) => new THREE.Vector3(x, y, z)),
+    );
+    g.add(new THREE.Line(geo, mat));
+  };
+
+  // Línea de gol (a lo ancho del campo visible).
+  line([[-FIELD_HALF_WIDTH, 0], [FIELD_HALF_WIDTH, 0]]);
+  // Área grande (16.5 m × 40.32 m).
+  line([[-20.16, 0], [-20.16, 16.5], [20.16, 16.5], [20.16, 0]]);
+  // Área chica (5.5 m × 18.32 m).
+  line([[-9.16, 0], [-9.16, 5.5], [9.16, 5.5], [9.16, 0]]);
+  // Arco del penal (radio 9.15 desde el punto, solo el tramo fuera del área).
+  const arc: [number, number][] = [];
+  for (let a = 37; a <= 143; a += 4) {
+    const r = (a * Math.PI) / 180;
+    arc.push([9.15 * Math.cos(r), 11 + 9.15 * Math.sin(r)]);
+  }
+  line(arc);
+  // Punto de penal.
+  const spot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.12, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 }),
+  );
+  spot.rotation.x = -Math.PI / 2;
+  spot.position.set(0, y, 11);
+  g.add(spot);
+  return g;
+}
+
+/** Cielo nocturno en gradiente vertical (CanvasTexture como fondo de escena). */
+function makeSkyTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 4;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  const grad = ctx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#0c1b30');
+  grad.addColorStop(0.55, '#081320');
+  grad.addColorStop(1, '#040a12');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 /** Red como grilla de líneas (CLAUDE.md: red con líneas, low-poly). */
 function buildNet(): THREE.LineSegments {
   const pts: number[] = [];
   const back = -GOAL_DEPTH;
-  const cell = 0.3;
+  const cell = 0.18;
 
   // Malla del fondo de la red (plano en z = back).
   for (let x = -GOAL_HALF_WIDTH; x <= GOAL_HALF_WIDTH + 1e-3; x += cell) {
@@ -165,15 +219,16 @@ function buildLights(scene: THREE.Scene): void {
 }
 
 export function buildWorld(scene: THREE.Scene): World {
-  scene.background = new THREE.Color(0x06080d); // cielo oscuro
-  scene.fog = new THREE.Fog(0x06080d, 45, 90);
+  scene.background = makeSkyTexture(); // cielo nocturno en gradiente
+  scene.fog = new THREE.Fog(0x060c16, 55, 120);
 
   const group = new THREE.Group();
   const field = buildField();
   const goal = buildGoal();
-  group.add(field, goal.group);
+  group.add(field, buildPitchMarkings(), goal.group);
   scene.add(group);
   buildLights(scene);
+  buildStadium(scene);
 
   return { group, net: goal.net };
 }

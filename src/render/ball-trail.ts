@@ -6,8 +6,8 @@ import * as THREE from 'three';
  * cola (color → oscuro, que se funde con el fondo). Sin asignaciones por frame
  * más allá del rebuild de la geometría.
  */
-const MAX_AGE_MS = 300;
-const HEAD = new THREE.Color(0xaaffcc);
+const MAX_AGE_MS = 340;
+const HEAD = new THREE.Color(0xeafff2);
 
 export class BallTrail {
   readonly line: THREE.Line;
@@ -20,8 +20,9 @@ export class BallTrail {
       new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.95,
         depthTest: false,
+        blending: THREE.AdditiveBlending,
       }),
     );
     this.line.frustumCulled = false;

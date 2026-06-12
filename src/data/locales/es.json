@@ -47,7 +47,11 @@
     "hintAim": "Apunta (mueve · ←→) · DISPARO para elegir el contacto",
     "hintContact": "Mueve el contacto (arrastra · WASD) · mantén DISPARO para cargar",
     "hintPower": "Suelta en la potencia justa",
-    "tapToContinue": "DISPARO para continuar"
+    "tapToContinue": "DISPARO para continuar",
+    "ghostAim": "STICK-I",
+    "ghostContact": "STICK-D",
+    "ghostShot": "DISPARO",
+    "ghostType": "Tipo"
   },
   "result": {
     "goal": "¡GOOOOL!",
@@ -74,6 +78,47 @@
     "chanfle_exterior": "CHANFLE CON EL EXTERIOR DEL PIE",
     "picada": "PICADA",
     "normal": "GOLPE NATURAL"
+  },
+  "feedback": {
+    "title": "Análisis del tiro",
+    "insideCurve": "Chanfle interior: rodea y cae cuando la receta está bien calibrada.",
+    "outsideCurve": "Chanfle exterior: abre la trayectoria antes de volver.",
+    "topspin": "Tiro de caída: gana altura y baja con fuerza.",
+    "drivenLow": "Tiro raso: sale tenso, bajo y pesado.",
+    "knuckle": "Knuckle: poca rotación y vuelo inestable controlado.",
+    "natural": "Golpe natural: equilibrio entre dirección, altura y potencia.",
+    "perfect": "Gol perfecto: buena dirección, contacto claro y potencia ideal.",
+    "lowPower": "Potencia baja: faltó aproximadamente {delta} barra.",
+    "highPower": "Demasiada potencia: la pelota no alcanzó a bajar.",
+    "aimCenter": "Buen contacto, pero apuntaste demasiado al centro.",
+    "moreCurve": "Poco efecto: mueve el contacto más hacia el lateral interior.",
+    "tooHigh": "La curva fue correcta, pero el tiro salió muy alto.",
+    "cross": "Cruce en arco: x={x} m / y={y} m",
+    "barrier": "Altura en barrera: {y} m",
+    "idealPower": "Potencia: {power} / ideal {ideal}",
+    "contact": "Contacto: x={x} / y={y}",
+    "direction": "Azimut: {deg}°"
+  },
+  "coach": {
+    "tech": {
+      "natural": "Golpe natural: contacto al centro, dirección y potencia justa.",
+      "inside_curve": "Chanfle con el interior: apúntale al palo y deja que la comba la meta. Suéltala en ~3 barras.",
+      "outside_curve": "Con el exterior del pie: abre la curva afuera del palo y que vuelva.",
+      "topspin": "De caída: pégale arriba del centro, sube sobre la barrera y baja de golpe.",
+      "driven_low": "Raso: contacto abajo y poca potencia, tensa y pegada al palo.",
+      "knuckle": "Knuckle: al medio y fuerte, sin rotación, vuelo que el arquero no caza."
+    },
+    "post": {
+      "goalPerfect": "Potencia perfecta. Esa misma en tu consola.",
+      "goal": "¡Adentro! Afina la potencia para la doble estrella.",
+      "saved": "Bien pegada, pero al medio. Búscale el palo lejano.",
+      "post": "Por un pelo. Córrele la mira un poquito hacia adentro.",
+      "wall": "La barrera la tapó. Dale más altura o rodéala con comba.",
+      "tooHigh": "Se fue a las nubes: la soltaste con mucha fuerza.",
+      "tooHard": "Demasiada fuerza: salió dura y desviada.",
+      "tooSoft": "Quedó corta: le faltó potencia a la barra.",
+      "out": "Apúntale un poco más al centro del arco."
+    }
   },
   "stars": {
     "one": "Anota el gol",
@@ -123,7 +168,7 @@
     },
     "a1n03": {
       "name": "La potencia justa",
-      "brief": "Diego te mira de brazos cruzados: 'Cualquiera le pega fuerte. Los grandes saben CUANTO'. Suelta la barra en el punto exacto y mira como brilla."
+      "brief": "Diego te mira de brazos cruzados: 'Cualquiera le pega fuerte. Los grandes saben CUÁNTO'. Suelta la barra en el punto justo y mira cómo brilla."
     },
     "a1n04": {
       "name": "La barrera",
@@ -131,7 +176,7 @@
     },
     "a1n05": {
       "name": "El examen de Diego",
-      "brief": "Minuto 88, clásico de barrio empatado. Diego te entrega la pelota: 'Mostrame que aprendiste, pibe'. Tres goles y el Acto 2 es tuyo."
+      "brief": "Minuto 88, clásico de barrio empatado. Diego te pasa la pelota: 'Muéstrame lo que aprendiste, cabro'. Tres goles y el Acto 2 es tuyo."
     }
   }
 }
