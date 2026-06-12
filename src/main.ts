@@ -39,6 +39,7 @@ const game = new Game(
   hudRoot,
   world.net,
   render,
+  world.setTimeOfDay,
 );
 game.start();
 

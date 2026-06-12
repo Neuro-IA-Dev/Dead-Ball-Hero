@@ -4,10 +4,10 @@ import type { ShotIntent } from '@/game/shot-model';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-const CAM_BACK = 5.8;
-const CAM_SIDE = 0.72;
-const CAM_HEIGHT = 1.05;
-const CAM_LOOK_HEIGHT = 1.0;
+const CAM_BACK = 8.35;
+const CAM_SIDE = 1.38;
+const CAM_HEIGHT = 1.62;
+const CAM_LOOK_HEIGHT = 1.22;
 const CAM_FOLLOW_FACTOR = 0.05;
 const CAM_TAU = 0.22;
 const CAM_YAW_CAP = THREE.MathUtils.degToRad(3);

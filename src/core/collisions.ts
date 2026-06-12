@@ -4,8 +4,7 @@ import {
   GOAL_HALF_WIDTH,
   GOAL_HEIGHT,
   GOAL_LINE_Z,
-  /* GOAL_DEPTH,
-   POST_RADIUS,*/
+  POST_RADIUS,
   BALL_RADIUS,
   FIELD_HALF_WIDTH,
 } from '@/core/field';
@@ -33,6 +32,8 @@ export interface CrossInfo {
 export interface CollisionResult {
   event: ShotEvent | null;
   cross?: CrossInfo;
+  /** Rebote NO terminal contra un tubo del arco (para SFX/feedback). */
+  bounce?: 'post' | 'crossbar';
 }
 
 export interface BarrierSetup {
@@ -207,6 +208,63 @@ export function isOutOfPlay(pos: THREE.Vector3): boolean {
   return Math.abs(pos.x) > FIELD_HALF_WIDTH || pos.z < -3;
 }
 
+// --- Postes y travesaño como TUBOS (rebote, no evento terminal) ------------
+
+/** Restitución del tubo: < 1 = pierde energía (palo seco). */
+const POST_RESTITUTION = 0.62;
+/** Solo evaluamos el rebote cerca del plano del arco. */
+const POST_Z_BAND = 0.4;
+
+interface PostSegment {
+  a: THREE.Vector3;
+  b: THREE.Vector3;
+  kind: 'post' | 'crossbar';
+}
+
+const POST_SEGMENTS: PostSegment[] = [
+  // Poste izquierdo y derecho (verticales).
+  { a: new THREE.Vector3(-GOAL_HALF_WIDTH, 0, 0), b: new THREE.Vector3(-GOAL_HALF_WIDTH, GOAL_HEIGHT, 0), kind: 'post' },
+  { a: new THREE.Vector3(GOAL_HALF_WIDTH, 0, 0), b: new THREE.Vector3(GOAL_HALF_WIDTH, GOAL_HEIGHT, 0), kind: 'post' },
+  // Travesaño (horizontal).
+  { a: new THREE.Vector3(-GOAL_HALF_WIDTH, GOAL_HEIGHT, 0), b: new THREE.Vector3(GOAL_HALF_WIDTH, GOAL_HEIGHT, 0), kind: 'crossbar' },
+];
+
+const _ab = new THREE.Vector3();
+const _ap = new THREE.Vector3();
+const _closest = new THREE.Vector3();
+const _normal = new THREE.Vector3();
+
+/** Rebota el balón contra un segmento (eje del tubo). Muta el estado. */
+function reflectOffSegment(state: BallState, seg: PostSegment): boolean {
+  _ab.subVectors(seg.b, seg.a);
+  _ap.subVectors(state.pos, seg.a);
+  const abLenSq = _ab.lengthSq() || 1;
+  const t = Math.max(0, Math.min(1, _ap.dot(_ab) / abLenSq));
+  _closest.copy(seg.a).addScaledVector(_ab, t);
+  _normal.subVectors(state.pos, _closest);
+  const dist = _normal.length();
+  const minDist = POST_RADIUS + BALL_RADIUS;
+  if (dist > minDist) return false;
+
+  if (dist > 1e-5) _normal.multiplyScalar(1 / dist);
+  else _normal.set(Math.sign(state.pos.x) || 1, 0, 1).normalize();
+
+  const vn = state.vel.dot(_normal);
+  if (vn < 0) state.vel.addScaledVector(_normal, -(1 + POST_RESTITUTION) * vn);
+  // Reposiciona el balón en la superficie del tubo (evita que se quede dentro).
+  state.pos.copy(_closest).addScaledVector(_normal, minDist + 1e-3);
+  return true;
+}
+
+/** Rebote contra postes/travesaño. Devuelve el tubo golpeado o null. */
+export function resolvePostBounce(state: BallState): 'post' | 'crossbar' | null {
+  if (Math.abs(state.pos.z) > POST_Z_BAND) return null;
+  for (const seg of POST_SEGMENTS) {
+    if (reflectOffSegment(state, seg)) return seg.kind;
+  }
+  return null;
+}
+
 function resolveBarrier(
   prev: THREE.Vector3,
   cur: THREE.Vector3,
@@ -251,14 +309,20 @@ function resolveBarrier(
  */
 export class ShotCollider {
   private prev = new THREE.Vector3();
+  /** El balón ya rebotó en un tubo en este vuelo (para etiquetar POST). */
+  private postHit = false;
 
   constructor(
     private readonly groundBounceScale: number = 1,
     private readonly barrier?: BarrierColliderConfig,
+    /** Rebote físico en los tubos (solo el vuelo real; el preview lo desactiva
+     *  para NO revelar el carom del palo y no ensuciar la escena). */
+    private readonly bouncePosts: boolean = true,
   ) {}
 
   begin(state: BallState): void {
     this.prev.copy(state.pos);
+    this.postHit = false;
   }
 
   /** Procesa un paso ya integrado. Devuelve el evento terminal o null. */
@@ -268,11 +332,24 @@ export class ShotCollider {
     const wall = resolveBarrier(this.prev, state.pos, this.barrier);
     if (wall.event) return wall;
 
+    // Tubos del arco: rebote NO terminal (puede entrar o salir tras pegar).
+    const bounce = this.bouncePosts ? resolvePostBounce(state) : null;
+    if (bounce) {
+      this.postHit = true;
+      this.prev.copy(state.pos);
+      return { event: null, bounce };
+    }
+
     const goal = resolveGoalLine(this.prev, state.pos);
     this.prev.copy(state.pos);
+    // Palo y adentro = GOAL; palo y afuera = POST (en vez de OUT).
+    if (goal.event === 'GOAL') return goal;
+    if (goal.event === 'OUT' && this.postHit) {
+      return goal.cross ? { event: 'POST', cross: goal.cross } : { event: 'POST' };
+    }
     if (goal.event) return goal;
 
-    if (isOutOfPlay(state.pos)) return { event: 'OUT' };
+    if (isOutOfPlay(state.pos)) return { event: this.postHit ? 'POST' : 'OUT' };
 
     // Balón muerto: rodando en el suelo demasiado lento para llegar al arco.
     // Resuelve en una fracción de segundo en vez de esperar el safeguard (freeze).
@@ -280,7 +357,7 @@ export class ShotCollider {
       state.pos.y <= BALL_RADIUS + 0.02 &&
       Math.hypot(state.vel.x, state.vel.z) < REST_SPEED
     ) {
-      return { event: 'OUT' };
+      return { event: this.postHit ? 'POST' : 'OUT' };
     }
 
     return { event: null };

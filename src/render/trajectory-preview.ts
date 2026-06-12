@@ -121,6 +121,7 @@ function buildShotPreview(
     groundBounceScale: launch.groundBounceScale,
     ...(barrier ? { barrier } : {}),
     detectCollision: true,
+    bouncePosts: false,
     stop: (state) => state.pos.z <= -2 || state.pos.y < -0.1,
   });
 
@@ -147,6 +148,7 @@ function buildAimPreview(
     groundBounceScale: launch.groundBounceScale,
     ...(barrier ? { barrier } : {}),
     detectCollision: true,
+    bouncePosts: false,
     stop: (state) => state.pos.z <= -1 || state.pos.y < -0.1,
   });
   return selectPreviewSamples(trace.samples, 0.88);

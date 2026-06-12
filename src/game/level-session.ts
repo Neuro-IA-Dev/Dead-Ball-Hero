@@ -2,6 +2,7 @@ import type { ShotEvent } from '@/core/collisions';
 import type { ShotType } from '@/game/shot-model';
 import { GOAL_HALF_WIDTH, GOAL_HEIGHT } from '@/core/field';
 import type { Corner, KickType, LevelSpec, StarCondition } from '@/game/level';
+import { computeShotScore } from '@/game/score';
 
 /**
  * Sesión de un nivel y evaluación de estrellas — soporte de 1.15.
@@ -16,6 +17,8 @@ export interface ShotOutcome {
   shotType: ShotType;
   usedAidLine: boolean;
   cross?: { x: number; y: number } | null;
+  /** El balón pegó en un tubo y entró igual (palo y adentro). */
+  hitPost?: boolean;
 }
 
 /** Mapea el tipo interno de tiro al KickType del esquema de niveles. */
@@ -69,15 +72,21 @@ export interface SessionStatus {
   goalsScored: number;
   goalsNeeded: number;
   stars: number;
+  score: number;
   passed: boolean;
   finished: boolean;
   failed: boolean;
+  /** Cumplimiento de cada estrella (1ª = superar, 2ª/3ª = condición del nivel). */
+  oneMet: boolean;
+  twoMet: boolean;
+  threeMet: boolean;
 }
 
 export class LevelSession {
   readonly level: LevelSpec;
   attemptsLeft: number;
   goalsScored = 0;
+  score = 0;
   private metTwo = false;
   private metThree = false;
   private missed = false;
@@ -96,6 +105,14 @@ export class LevelSession {
     this.attemptsLeft = Math.max(0, this.attemptsLeft - 1);
     if (outcome.event === 'GOAL') {
       this.goalsScored += 1;
+      this.score += computeShotScore({
+        event: outcome.event,
+        perfectPower: outcome.perfectPower,
+        usedAidLine: outcome.usedAidLine,
+        distance: this.level.ball.z,
+        cross: outcome.cross ?? null,
+        postIn: outcome.hitPost ?? false,
+      }).total;
       if (evaluateGoalCondition(this.level.stars.two, outcome)) this.metTwo = true;
       if (evaluateGoalCondition(this.level.stars.three, outcome)) this.metThree = true;
     } else {
@@ -129,9 +146,13 @@ export class LevelSession {
       goalsScored: this.goalsScored,
       goalsNeeded: this.level.goalsNeeded,
       stars: this.stars(),
+      score: this.score,
       passed: this.passed,
       finished,
       failed: finished && !this.passed,
+      oneMet: this.passed,
+      twoMet: this.passed && this.conditionMet(this.level.stars.two, this.metTwo),
+      threeMet: this.passed && this.conditionMet(this.level.stars.three, this.metThree),
     };
   }
 }

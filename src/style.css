@@ -44,20 +44,9 @@ body,
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
 }
 
+/* Instrucciones de fase: ocultas a pedido del usuario (estaban de más). */
 .hud-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 8px 16px;
-  background: rgba(10, 14, 20, 0.5);
-  border-radius: 999px;
-  backdrop-filter: blur(4px);
-  text-align: center;
-  white-space: nowrap;
+  display: none;
 }
 
 .hud-message {
@@ -83,21 +72,23 @@ body,
   color: #2ecf6b;
 }
 
-/* Etiqueta del tipo de golpe (1.9b.3) — franja inferior en mayúsculas */
+/* Etiqueta del tipo de golpe — franja en mayúsculas, ARRIBA del mando para
+ * que no quede tapada (el mando vive abajo-centro). */
 .contact-label {
   position: absolute;
   left: 50%;
-  bottom: 96px;
+  bottom: 184px;
   transform: translateX(-50%);
-  padding: 5px 16px;
-  font-size: 14px;
+  padding: 6px 18px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
   color: #eaf4ff;
-  background: rgba(8, 12, 18, 0.62);
-  border-radius: 4px;
+  background: rgba(8, 12, 18, 0.72);
+  border: 1px solid rgba(140, 190, 230, 0.25);
+  border-radius: 6px;
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -155,6 +146,18 @@ body,
   font-size: 13px;
   font-weight: 600;
   opacity: 0.9;
+}
+.status-score {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffd24a;
+  letter-spacing: 0.01em;
+}
+.level-score {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffd24a;
+  margin-bottom: 18px;
 }
 
 /* Panel de resultado del nivel (1.15) — interactivo */
@@ -352,11 +355,299 @@ body,
   color: #ffd24a;
 }
 
+/* Cluster arriba-izquierda: viento + DESAFÍO */
+.hud-topleft {
+  position: absolute;
+  top: 56px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 240px;
+}
+.hud-wind {
+  display: none;
+  align-self: flex-start;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #cfe6ff;
+  background: rgba(8, 14, 22, 0.55);
+  border: 1px solid rgba(140, 190, 230, 0.25);
+  border-radius: 999px;
+}
+.hud-wind.show {
+  display: block;
+}
+.hud-objectives {
+  padding: 10px 13px;
+  background: rgba(8, 12, 18, 0.5);
+  border: 1px solid rgba(140, 190, 230, 0.22);
+  border-left: 3px solid #ffd24a;
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.hud-objectives.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+.obj-title {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #ffd24a;
+  margin-bottom: 6px;
+}
+.obj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.obj-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12.5px;
+  line-height: 1.25;
+  color: #c4d3e2;
+}
+.obj-row.met {
+  color: #eaf7ff;
+}
+.obj-star {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+  line-height: 1.1;
+}
+.obj-row.met .obj-star {
+  color: #ffd24a;
+  text-shadow: 0 0 8px rgba(255, 210, 74, 0.6);
+}
+
+/* Distancia al arco (arriba-centro) */
+.hud-distance {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.hud-distance.show {
+  display: flex;
+}
+.distance-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #8ba6c0;
+}
+.distance-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: #f3f9ff;
+}
+
+/* Nota del último tiro (A+/B/C/D) — derecha, bajo el marcador */
+.hud-grade {
+  position: absolute;
+  top: 64px;
+  right: 18px;
+  transform: scale(0.6);
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 900;
+  border-radius: 14px;
+  color: #06140c;
+  background: #39ff88;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.hud-grade.show {
+  opacity: 1;
+  transform: scale(1);
+}
+.hud-grade[data-grade='A'] {
+  background: #39ff88;
+}
+.hud-grade[data-grade='B'] {
+  background: #ffd24a;
+}
+.hud-grade[data-grade='C'] {
+  background: #ff9a3c;
+  color: #190a02;
+}
+.hud-grade[data-grade='D'] {
+  background: #ff5a5a;
+  color: #1a0303;
+}
+
+/* Mando Fantasma v1 (jugable + espejo) — silueta genérica, legal */
+.phantom-pad {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%) translateY(12px);
+  display: none;
+  align-items: flex-end;
+  gap: clamp(18px, 6vw, 60px);
+  padding: 14px clamp(18px, 5vw, 40px);
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(18, 24, 34, 0.42), rgba(8, 12, 18, 0.5));
+  border: 1px solid rgba(150, 190, 220, 0.18);
+  backdrop-filter: blur(5px);
+  pointer-events: auto;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  touch-action: none;
+}
+.phantom-pad.show {
+  display: flex;
+  opacity: 0.92;
+  transform: translateX(-50%) translateY(0);
+}
+
+.pad-stick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.pad-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+.pad-switch-kicker {
+  appearance: none;
+  border: 1px solid rgba(180, 205, 225, 0.32);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #dce9f4;
+  background: linear-gradient(180deg, rgba(32, 42, 55, 0.72), rgba(10, 14, 20, 0.72));
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  touch-action: manipulation;
+}
+.pad-switch-kicker:active {
+  transform: translateY(1px) scale(0.97);
+  border-color: rgba(255, 210, 74, 0.6);
+}
+.pad-well {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, rgba(40, 52, 70, 0.6), rgba(10, 14, 20, 0.7));
+  border: 2px solid rgba(150, 190, 220, 0.28);
+  touch-action: none;
+}
+.pad-stick.active .pad-well {
+  border-color: #39ff88;
+  box-shadow: 0 0 14px rgba(57, 255, 136, 0.4);
+}
+.pad-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 32%, #eaf4ff, #8fa9c4 70%, #5b7088);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.04s linear;
+}
+.pad-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #b9ccdf;
+}
+
+.pad-fire {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 14, 20, 0.6);
+  border: 2px solid rgba(255, 210, 74, 0.55);
+  touch-action: none;
+}
+.pad-fire.active {
+  border-color: #ffd24a;
+  box-shadow: 0 0 16px rgba(255, 210, 74, 0.5);
+}
+.pad-fire.down {
+  transform: scale(0.94);
+}
+.pad-fire-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0%;
+  background: linear-gradient(180deg, #ffd24a, #ff7a2f);
+  transition: height 0.04s linear;
+}
+.pad-fire-label {
+  position: relative;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+@media (max-width: 700px) {
+  .phantom-pad {
+    gap: clamp(10px, 4vw, 24px);
+    padding: 10px clamp(10px, 4vw, 22px);
+  }
+  .pad-well {
+    width: 82px;
+    height: 82px;
+  }
+  .pad-fire {
+    width: 74px;
+    height: 74px;
+  }
+  .pad-switch-kicker {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+}
+
 /* Línea del entrenador (técnica al apuntar / diagnóstico tras el tiro) */
 .coach-line {
   position: absolute;
   left: 50%;
-  top: 64px;
+  top: 98px;
   transform: translateX(-50%) translateY(-6px);
   max-width: min(86vw, 560px);
   padding: 7px 16px;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { techniqueTipKey, postShotTipKey } from '@/game/coach';
+import { techniqueTipKey, postShotTipKey, shotGrade } from '@/game/coach';
 
 describe('techniqueTipKey', () => {
   it('mapea cada tipo de tiro a su clave de técnica', () => {
@@ -45,5 +45,20 @@ describe('postShotTipKey', () => {
 
   it('afuera neutro → corregir la mira', () => {
     expect(postShotTipKey({ ...base, event: 'OUT' })).toBe('coach.post.out');
+  });
+});
+
+describe('shotGrade', () => {
+  it('gol con potencia perfecta = A+', () => {
+    expect(shotGrade('GOAL', true)).toBe('A+');
+  });
+  it('gol normal = B', () => {
+    expect(shotGrade('GOAL', false)).toBe('B');
+  });
+  it('palo/atajada = C, afuera/barrera = D', () => {
+    expect(shotGrade('POST', false)).toBe('C');
+    expect(shotGrade('SAVED', false)).toBe('C');
+    expect(shotGrade('OUT', false)).toBe('D');
+    expect(shotGrade('WALL', false)).toBe('D');
   });
 });

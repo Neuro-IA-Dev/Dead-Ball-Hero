@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { buildBarrierCollider, bounceGround, raiseBarrier, resolveGoalLine, ShotCollider } from './collisions';
+import {
+  buildBarrierCollider,
+  bounceGround,
+  raiseBarrier,
+  resolveGoalLine,
+  resolvePostBounce,
+  ShotCollider,
+} from './collisions';
 import { GOAL_HALF_WIDTH, GOAL_HEIGHT, BALL_RADIUS } from './field';
 import { traceTrajectory, type BallState } from './ballistics';
 
@@ -101,6 +108,37 @@ describe('collisions - barrera', () => {
     state.pos.set(0, 2.45, 14);
 
     expect(collider.update(state).event).toBeNull();
+  });
+});
+
+describe('collisions — tubos del arco (palo dentro / palo fuera)', () => {
+  it('rebote en el poste: refleja la componente hacia el arco y reporta post', () => {
+    const state: BallState = { pos: v(GOAL_HALF_WIDTH - 0.05, 1.2, 0.05), vel: v(0, 0, -20), spin: v(0, 0, 0) };
+    expect(resolvePostBounce(state)).toBe('post');
+    expect(state.vel.z).toBeGreaterThan(-20); // ya no va de lleno hacia el arco
+  });
+
+  it('rebote en el travesaño: lo frena hacia abajo', () => {
+    const state: BallState = { pos: v(0, GOAL_HEIGHT - 0.05, 0.05), vel: v(0, 4, -10), spin: v(0, 0, 0) };
+    expect(resolvePostBounce(state)).toBe('crossbar');
+    expect(state.vel.y).toBeLessThan(4);
+  });
+
+  it('lejos del plano del arco no hay rebote', () => {
+    const state: BallState = { pos: v(GOAL_HALF_WIDTH, 1.2, 5), vel: v(0, 0, -20), spin: v(0, 0, 0) };
+    expect(resolvePostBounce(state)).toBeNull();
+  });
+
+  it('ShotCollider: pegar en el poste y salir ancho ⇒ evento POST', () => {
+    const col = new ShotCollider(1);
+    const state: BallState = { pos: v(GOAL_HALF_WIDTH - 0.05, 1.2, 0.3), vel: v(2, 0, -20), spin: v(0, 0, 0) };
+    col.begin(state);
+    state.pos.set(GOAL_HALF_WIDTH - 0.03, 1.2, 0.04);
+    const r1 = col.update(state, 1 / 120);
+    expect(r1.bounce).toBe('post');
+    expect(r1.event).toBeNull();
+    state.pos.set(GOAL_HALF_WIDTH + 0.5, 1.2, -0.1);
+    expect(col.update(state, 1 / 120).event).toBe('POST');
   });
 });
 

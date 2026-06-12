@@ -55,7 +55,7 @@ export class App {
     mountRoot.append(this.menuRoot);
 
     this.game.onLevelResolved = (status, level) => {
-      this.progress = recordLevelResult(level.id, status.stars, level.rewardCoins);
+      this.progress = recordLevelResult(level.id, status.stars, level.rewardCoins, status.score);
     };
     this.game.onRequestNext = () => this.playNextOrMenu();
     this.game.onRequestMenu = () => this.showMenu();

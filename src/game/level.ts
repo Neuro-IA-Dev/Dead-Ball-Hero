@@ -1,5 +1,5 @@
 import act1 from '@/data/levels/act1.json';
-import { tExists } from '@/core/i18n';
+import { tExists, t } from '@/core/i18n';
 
 /**
  * Formato de nivel + loader con validación — tarea 1.13.
@@ -177,4 +177,20 @@ export function getCampaignLevels(): LevelSpec[] {
 
 export function getLevelById(id: string): LevelSpec | undefined {
   return getCampaignLevels().find((l) => l.id === id);
+}
+
+/** Texto i18n de una condición de estrella (para el panel de DESAFÍO del HUD). */
+export function starConditionLabel(cond: StarCondition): string {
+  switch (cond.type) {
+    case 'perfect_power':
+      return t('stars.perfect_power');
+    case 'all_attempts':
+      return t('stars.all_attempts');
+    case 'no_aid_line':
+      return t('stars.no_aid_line');
+    case 'target':
+      return t('stars.target', { corner: t(`corner.${cond.corner}`) });
+    case 'kick':
+      return t('stars.kick', { kick: t(`shot.${cond.kick}`) });
+  }
 }

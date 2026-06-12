@@ -14,6 +14,8 @@ export interface FlightParams {
   wind?: THREE.Vector3;
   groundBounceScale?: number;
   barrier?: BarrierColliderConfig;
+  /** Rebote físico en los tubos (default true). El preview lo pone en false. */
+  bouncePosts?: boolean;
 }
 
 export interface TraceOptions extends FlightParams {
@@ -82,7 +84,7 @@ export function traceTrajectory(
   const state = cloneBallState(initial);
   const samples: THREE.Vector3[] = [state.pos.clone()];
   const collider = opts.detectCollision
-    ? new ShotCollider(opts.groundBounceScale ?? 1, opts.barrier)
+    ? new ShotCollider(opts.groundBounceScale ?? 1, opts.barrier, opts.bouncePosts ?? true)
     : null;
   if (collider) collider.begin(state);
 

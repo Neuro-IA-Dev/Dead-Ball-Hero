@@ -438,6 +438,7 @@ function predictOutcome(
     groundBounceScale: recipe.groundBounceScale,
     ...(barrier ? { barrier } : {}),
     detectCollision: true,
+    bouncePosts: false,
     stop: (s) => s.pos.z <= -3 || s.pos.y < -0.1,
   });
   const barrierZ =

@@ -30,6 +30,20 @@ export interface PostShotInput {
 const TOO_HIGH_M = 2.6;
 const POWER_OFF_BARS = 0.5;
 
+/** Nota del tiro (estilo "A+" de la referencia), del resultado y la ejecución. */
+export function shotGrade(event: ShotEvent, perfectPower: boolean): string {
+  switch (event) {
+    case 'GOAL':
+      return perfectPower ? 'A+' : 'B';
+    case 'POST':
+    case 'CROSSBAR':
+    case 'SAVED':
+      return 'C';
+    default:
+      return 'D';
+  }
+}
+
 /** Diagnóstico de una línea tras el tiro, accionable y basado en datos. */
 export function postShotTipKey(p: PostShotInput): string {
   switch (p.event) {

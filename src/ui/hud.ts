@@ -7,6 +7,7 @@ export interface LevelStatusView {
   attemptsLeft: number;
   goalsScored: number;
   goalsNeeded: number;
+  score: number;
   minute?: number;
   scoreHome?: number;
   scoreAway?: number;
@@ -16,6 +17,11 @@ export interface LevelPanelHandlers {
   onRetry: () => void;
   onNext: () => void;
   onMenu: () => void;
+}
+
+export interface ObjectiveView {
+  text: string;
+  met: boolean;
 }
 
 /**
@@ -37,6 +43,12 @@ export class Hud {
   private statusGoals: HTMLElement;
   private statusAttempts: HTMLElement;
   private statusScenario: HTMLElement;
+  private statusScore: HTMLElement;
+  private objectivesEl: HTMLElement;
+  private objectivesList: HTMLElement;
+  private distanceEl: HTMLElement;
+  private windEl: HTMLElement;
+  private gradeEl: HTMLElement;
   private panel: LevelPanel;
   readonly power: PowerBar;
 
@@ -47,27 +59,101 @@ export class Hud {
     this.statusScenario = el('div', 'status-scenario');
     this.statusGoals = el('div', 'status-goals');
     this.statusAttempts = el('div', 'status-attempts');
+    this.statusScore = el('div', 'status-score');
     const statusRight = el('div', 'status-right');
-    statusRight.append(this.statusGoals, this.statusAttempts);
+    statusRight.append(this.statusScore, this.statusGoals, this.statusAttempts);
     const statusLeft = el('div', 'status-left');
     statusLeft.append(this.statusName, this.statusScenario);
     this.statusEl.append(statusLeft, statusRight);
+
+    // Panel DESAFÍO + viento (arriba-izquierda, como la referencia).
+    this.windEl = el('div', 'hud-wind');
+    this.objectivesEl = el('div', 'hud-objectives');
+    const objTitle = el('div', 'obj-title');
+    objTitle.textContent = t('hud.challenge');
+    this.objectivesList = el('div', 'obj-list');
+    this.objectivesEl.append(objTitle, this.objectivesList);
+    const topLeft = el('div', 'hud-topleft');
+    topLeft.append(this.windEl, this.objectivesEl);
+
+    // Distancia al arco (arriba-centro).
+    this.distanceEl = el('div', 'hud-distance');
 
     this.hintEl = el('div', 'hud-hint');
     this.messageEl = el('div', 'hud-message');
     this.contactLabelEl = el('div', 'contact-label');
     this.coachEl = el('div', 'coach-line');
+    this.gradeEl = el('div', 'hud-grade');
     this.power = new PowerBar();
     this.panel = new LevelPanel();
     this.root.append(
       this.statusEl,
+      topLeft,
+      this.distanceEl,
       this.hintEl,
       this.messageEl,
       this.contactLabelEl,
       this.coachEl,
+      this.gradeEl,
       this.power.root,
       this.panel.root,
     );
+  }
+
+  /** Panel de objetivos (las 3 estrellas del nivel) con tilde al cumplirse. */
+  setObjectives(items: ObjectiveView[] | null): void {
+    if (!items || items.length === 0) {
+      this.objectivesEl.classList.remove('show');
+      return;
+    }
+    this.objectivesList.replaceChildren();
+    for (const item of items) {
+      const row = el('div', `obj-row${item.met ? ' met' : ''}`);
+      const mark = el('span', 'obj-star');
+      mark.textContent = item.met ? '★' : '☆';
+      const text = el('span', 'obj-text');
+      text.textContent = item.text;
+      row.append(mark, text);
+      this.objectivesList.append(row);
+    }
+    this.objectivesEl.classList.add('show');
+  }
+
+  /** Distancia al arco (m) o null para ocultar. */
+  setDistance(meters: number | null): void {
+    if (meters == null) {
+      this.distanceEl.classList.remove('show');
+      return;
+    }
+    this.distanceEl.replaceChildren();
+    const label = el('span', 'distance-label');
+    label.textContent = t('hud.distanceLabel');
+    const value = el('span', 'distance-value');
+    value.textContent = t('hud.meters', { n: meters.toFixed(1) });
+    this.distanceEl.append(label, value);
+    this.distanceEl.classList.add('show');
+  }
+
+  /** Viento (m/s) o null para ocultar (solo niveles con viento). */
+  setWind(mps: number | null): void {
+    if (mps == null) {
+      this.windEl.classList.remove('show');
+      return;
+    }
+    this.windEl.textContent = `${t('hud.windLabel')} ${t('hud.windValue', { n: mps.toFixed(1) })}`;
+    this.windEl.classList.add('show');
+  }
+
+  /** Nota del último tiro (A+/B/C/D) o null para ocultar. */
+  setGrade(letter: string | null): void {
+    if (!letter) {
+      this.gradeEl.classList.remove('show');
+      this.gradeEl.textContent = '';
+      return;
+    }
+    this.gradeEl.textContent = letter;
+    this.gradeEl.dataset.grade = letter[0] ?? '';
+    this.gradeEl.classList.add('show');
   }
 
   /** Barra de estado del nivel (nombre, goles, intentos, contexto). */
@@ -79,6 +165,7 @@ export class Hud {
     this.statusName.textContent = s.name;
     this.statusGoals.textContent = t('hud.goals', { scored: s.goalsScored, needed: s.goalsNeeded });
     this.statusAttempts.textContent = t('hud.attemptsLeft', { n: s.attemptsLeft });
+    this.statusScore.textContent = t('hud.points', { n: s.score.toLocaleString('es') });
     if (s.minute != null && (s.scoreHome != null || s.scoreAway != null)) {
       this.statusScenario.textContent = `${t('hud.minute', { min: s.minute })} · ${s.scoreHome ?? 0}-${s.scoreAway ?? 0}`;
       this.statusScenario.classList.add('show');
@@ -197,6 +284,7 @@ class LevelPanel {
   readonly root: HTMLElement;
   private titleEl: HTMLElement;
   private starsEl: HTMLElement;
+  private scoreEl: HTMLElement;
   private retryBtn: HTMLButtonElement;
   private nextBtn: HTMLButtonElement;
   private menuBtn: HTMLButtonElement;
@@ -207,12 +295,13 @@ class LevelPanel {
     const card = el('div', 'level-card');
     this.titleEl = el('div', 'level-title');
     this.starsEl = el('div', 'level-stars');
+    this.scoreEl = el('div', 'level-score');
     const buttons = el('div', 'level-buttons');
     this.menuBtn = button('btn btn-ghost', t('common.back'), () => this.handlers?.onMenu());
     this.retryBtn = button('btn btn-secondary', t('common.retry'), () => this.handlers?.onRetry());
     this.nextBtn = button('btn btn-primary', t('common.next'), () => this.handlers?.onNext());
     buttons.append(this.menuBtn, this.retryBtn, this.nextBtn);
-    card.append(this.titleEl, this.starsEl, buttons);
+    card.append(this.titleEl, this.starsEl, this.scoreEl, buttons);
     this.root.append(card);
   }
 
@@ -222,6 +311,7 @@ class LevelPanel {
       ? t('result.levelComplete')
       : t('result.levelFailed');
     this.titleEl.classList.toggle('is-win', status.passed);
+    this.scoreEl.textContent = t('result.score', { n: status.score.toLocaleString('es') });
     this.starsEl.replaceChildren();
     for (let i = 1; i <= 3; i++) {
       const star = el('span', i <= status.stars ? 'star on' : 'star');

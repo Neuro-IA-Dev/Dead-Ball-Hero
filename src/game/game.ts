@@ -8,7 +8,7 @@ import { GoalkeeperActor, KickerActor } from '@/render/actors';
 import { BarrierActor } from '@/render/barrier';
 import type { TrajectoryPreviewMode } from '@/render/trajectory-preview';
 import { Flight } from '@/game/flight';
-import { DEFAULT_KICKER, DIEGO, TRAINING_RIGHT_FOOT, type Kicker } from '@/game/kicker';
+import { DEFAULT_KICKER, DIEGO, TRAINING_RIGHT_FOOT, ROSTER, type Kicker } from '@/game/kicker';
 import { ShotMachine, type ShotPhase, type ShotInput } from '@/game/shot-machine';
 import {
   DEFAULT_GOALKEEPER_CONFIG,
@@ -36,6 +36,7 @@ import {
   type ShotEvent,
 } from '@/core/collisions';
 import { Hud } from '@/ui/hud';
+import { PhantomPad } from '@/ui/gamepad';
 import { DebugOverlay } from '@/ui/debug-overlay';
 import { t } from '@/core/i18n';
 import { MAGNUS_S } from '@/core/physics';
@@ -49,8 +50,8 @@ import {
   playNet,
   playGroan,
 } from '@/core/audio';
-import { techniqueTipKey, postShotTipKey } from '@/game/coach';
-import type { LevelSpec } from '@/game/level';
+import { techniqueTipKey, postShotTipKey, shotGrade } from '@/game/coach';
+import { starConditionLabel, type LevelSpec } from '@/game/level';
 import { LevelSession, type ShotOutcome, type SessionStatus } from '@/game/level-session';
 
 const AIM_X_LIMIT = GOAL_HALF_WIDTH + 2;
@@ -61,6 +62,10 @@ const AIM_RAMP_S = 0.6;
 
 const CONTACT_POINTER_SENS = 0.006;
 const CONTACT_KEY_STEP = 0.12;
+/** Velocidad del contacto con el stick-D del mando (unidades [-1,1] por s). */
+const CONTACT_PAD_SPEED = 1.4;
+/** Zona muerta de los sticks del mando. */
+const PAD_DEADZONE = 0.06;
 
 const HIT_STOP_MS = 70;
 const SHAKE_MS = 200;
@@ -101,6 +106,7 @@ export class Game {
   private trail: BallTrail;
   private netRipple: NetRipple;
   private hud: Hud;
+  private pad: PhantomPad;
   private debug: DebugOverlay;
   private kicker: Kicker = DEFAULT_KICKER;
   private kickerActor: KickerActor;
@@ -166,6 +172,7 @@ export class Game {
     hudRoot: HTMLElement,
     net: THREE.LineSegments,
     private renderFrame: () => void = () => this.renderer.render(this.scene, this.camera),
+    private setEnvironment: (when: 'clear' | 'rain' | 'night') => void = () => {},
   ) {
     this.applyUrlScenario();
     this.ballStart = ball.position.clone();
@@ -176,6 +183,11 @@ export class Game {
     this.trail = new BallTrail(scene);
     this.netRipple = new NetRipple(net);
     this.hud = new Hud(hudRoot);
+    this.pad = new PhantomPad(hudRoot, {
+      onPressStart: () => this.press(),
+      onPressEnd: () => this.release(),
+      onCycleKicker: () => this.switchKicker(),
+    });
     this.debug = new DebugOverlay(hudRoot);
     this.kickerActor = new KickerActor(scene);
     this.goalkeeper = new GoalkeeperActor(scene);
@@ -203,6 +215,7 @@ export class Game {
   /** Modo sandbox de QA (URL ?canonical/?wall/?keeper): juega sin menú ni nivel. */
   enableSandbox(): void {
     this.inputEnabled = true;
+    this.pad.setVisible(true);
   }
 
   private applyUrlScenario(): void {
@@ -278,10 +291,12 @@ export class Game {
     switch (this.machine.phase) {
       case 'AIMING':
         this.updateAimKeys(dt);
+        this.applyPadAim(dt);
         this.updateAimingState(dt);
         break;
       case 'CONTACT':
       case 'POWERING':
+        this.applyPadContact(dt);
         this.updateAimingState(dt);
         if (this.machine.phase === 'POWERING') this.hud.power.setValue(this.machine.power);
         break;
@@ -295,6 +310,39 @@ export class Game {
         this.updateResult(dt);
         break;
     }
+    this.updatePadMirror();
+  }
+
+  /** Stick-I del mando: empuja la mira (móvil) — mismo efecto que ←→↑↓. */
+  private applyPadAim(dt: number): void {
+    const v = this.pad.aimVector();
+    if (Math.hypot(v.x, v.y) < PAD_DEADZONE) return;
+    const a = this.machine.aim;
+    this.setAim(a.x + v.x * MAX_AIM_SPEED * dt, a.y + v.y * MAX_AIM_SPEED * dt);
+  }
+
+  /** Stick-D del mando: mueve el punto de contacto sobre el balón. */
+  private applyPadContact(dt: number): void {
+    const v = this.pad.contactVector();
+    if (Math.hypot(v.x, v.y) < PAD_DEADZONE) return;
+    const c = this.machine.contact;
+    this.machine.setContact(c.x + v.x * CONTACT_PAD_SPEED * dt, c.y + v.y * CONTACT_PAD_SPEED * dt);
+  }
+
+  /** Espejo: refleja mira/contacto/potencia en el mando aunque juegues con teclado. */
+  private updatePadMirror(): void {
+    const phase = this.machine.phase;
+    const active =
+      phase === 'AIMING' ? 'aim' : phase === 'CONTACT' ? 'contact' : phase === 'POWERING' ? 'fire' : 'none';
+    this.pad.setMirror({
+      aim: {
+        x: clamp(this.machine.aim.x / AIM_X_LIMIT, -1, 1),
+        y: clamp((this.machine.aim.y - (AIM_Y_MIN + AIM_Y_MAX) / 2) / ((AIM_Y_MAX - AIM_Y_MIN) / 2), -1, 1),
+      },
+      contact: this.machine.contact,
+      power: (this.machine.power - 1) / 4,
+      active,
+    });
   }
 
   private currentPreview(): { input: ShotInput; intent: ShotIntent; launch: ShotLaunch } {
@@ -538,6 +586,7 @@ export class Game {
         this.ball.scale.setScalar(1);
         this.aimCount += 1;
         if (this.aimCount > 1) playWhistle();
+        this.hud.setGrade(null);
         this.cameraRig.reset();
         this.kickerActor.setKicker(this.kicker, this.ballStart);
         this.goalkeeper.reset();
@@ -603,6 +652,7 @@ export class Game {
     this.hud.setResult(event);
     this.hud.setHint(t('hud.tapToContinue'));
     this.showCoachDiagnosis(event);
+    this.hud.setGrade(shotGrade(event, this.lastLaunch?.perfectPower ?? false));
     this.recordSessionShot(event);
 
     if (event === 'GOAL') {
@@ -615,7 +665,8 @@ export class Game {
     } else if (event === 'POST' || event === 'CROSSBAR') {
       this.resultMode = 'wait';
       this.postZoomMs = POST_ZOOM_MS;
-      playPost();
+      // El clank ya sonó en el rebote (onBounce); si no hubo rebote (plano), suénalo.
+      if (!this.flight?.hitPost) playPost();
       playGroan();
     } else {
       this.resultMode = 'wait';
@@ -625,6 +676,10 @@ export class Game {
 
   /** Diagnóstico de una línea del entrenador, desde datos reales del tiro. */
   private showCoachDiagnosis(event: ShotEvent): void {
+    if (event === 'GOAL' && this.flight?.hitPost) {
+      this.hud.setCoach(t('coach.post.goalPost'));
+      return;
+    }
     const powerDelta =
       this.machine.power -
       optimalPowerCenter(this.machine.contact, this.kicker, this.machine.power);
@@ -672,6 +727,11 @@ export class Game {
       groundBounceScale: launch.groundBounceScale,
       ...(flightBarrier ? { barrier: flightBarrier } : {}),
     });
+    // Clank metálico en el instante del rebote en el tubo (palo o travesaño).
+    this.flight.onBounce = () => {
+      playPost();
+      this.postZoomMs = POST_ZOOM_MS;
+    };
   }
 
   /** Carga un nivel (posición, barrera, arquero, pateador, ayuda) y lo arranca. */
@@ -711,14 +771,18 @@ export class Game {
     this.goalkeeper.setVisible(level.keeper != null);
 
     this.aidLine = level.aidLineOverride ?? this.kicker.line;
+    this.setEnvironment(level.scenario?.weather ?? 'night');
 
     this.cameraRig.setBallStart(this.ballStart);
     this.cameraRig.setFoot(this.kicker.foot === 'L' ? 'left' : 'right');
     this.kickerActor.setKicker(this.kicker, this.ballStart);
 
     this.hud.hideLevelPanel();
+    this.hud.setDistance(level.ball.z);
+    this.hud.setWind(level.wind ? Math.hypot(level.wind.x, level.wind.z) : null);
     this.updateLevelHud();
     this.inputEnabled = true;
+    this.pad.setVisible(true);
     this.machine.reset(); // → AIMING (onPhase configura el resto)
   }
 
@@ -729,13 +793,19 @@ export class Game {
   /** Oculta la UI de nivel (panel + estado) al volver al menú. */
   hideLevelUi(): void {
     this.inputEnabled = false;
+    this.pad.setVisible(false);
     this.hud.hideLevelPanel();
     this.hud.setStatus(null);
+    this.hud.setObjectives(null);
+    this.hud.setDistance(null);
+    this.hud.setWind(null);
+    this.hud.setGrade(null);
   }
 
   private updateLevelHud(): void {
     if (!this.session || !this.currentLevel) {
       this.hud.setStatus(null);
+      this.hud.setObjectives(null);
       return;
     }
     const st = this.lastStatus ?? this.session.status();
@@ -745,8 +815,15 @@ export class Game {
       attemptsLeft: st.attemptsLeft,
       goalsScored: st.goalsScored,
       goalsNeeded: st.goalsNeeded,
+      score: st.score,
       ...(sc ? { minute: sc.minute, scoreHome: sc.scoreHome, scoreAway: sc.scoreAway } : {}),
     });
+    const stars = this.currentLevel.stars;
+    this.hud.setObjectives([
+      { text: t('stars.one'), met: st.oneMet },
+      { text: starConditionLabel(stars.two), met: st.twoMet },
+      { text: starConditionLabel(stars.three), met: st.threeMet },
+    ]);
   }
 
   private recordSessionShot(event: ShotEvent): void {
@@ -757,6 +834,7 @@ export class Game {
       shotType: this.lastLaunch?.shotType ?? 'natural',
       usedAidLine: this.aidLine > 0,
       cross: this.flight?.cross ?? null,
+      hitPost: this.flight?.hitPost ?? false,
     };
     this.lastStatus = this.session.recordShot(outcome);
     this.levelFinished = this.lastStatus.finished;
@@ -823,13 +901,23 @@ export class Game {
     this.machine.setContact(c.x + dx, c.y + dy);
   }
 
+  /** True si el evento se originó en el mando (sticks/botón): el mando manda,
+   *  el tap global se ignora — así el stick-D no cuenta como DISPARO. */
+  private isPadEvent(e: Event): boolean {
+    return e.target instanceof Node && this.pad.root.contains(e.target);
+  }
+
   private bindInput(): void {
     this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
     window.addEventListener('pointerdown', (e) => {
+      if (this.isPadEvent(e)) return;
       this.aimFromPointer(e.clientX, e.clientY);
       this.press();
     });
-    window.addEventListener('pointerup', () => this.release());
+    window.addEventListener('pointerup', (e) => {
+      if (this.isPadEvent(e)) return;
+      this.release();
+    });
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
   }
@@ -919,17 +1007,17 @@ export class Game {
 
   private switchKicker(): void {
     if (this.machine.phase !== 'AIMING' && this.machine.phase !== 'CONTACT') return;
-    const next = this.kicker.foot === 'L' ? TRAINING_RIGHT_FOOT : DIEGO;
-    const currentContact = this.machine.contact;
+    // Q cicla por todo el roster de mentores.
+    const i = ROSTER.findIndex((k) => k.id === this.kicker.id);
+    const next = ROSTER[(i + 1) % ROSTER.length] ?? DIEGO;
+    const c = this.machine.contact;
+    // Si cambia el pie, espeja el contacto para conservar interior/exterior.
+    const contact = { x: next.foot !== this.kicker.foot ? -c.x : c.x, y: c.y };
     this.kicker = next;
     this.machine.setRunupMs(next.runupMs);
     this.machine.seed({
-      contact: { x: -currentContact.x, y: currentContact.y },
-      power: optimalPowerCenter(
-        { x: -currentContact.x, y: currentContact.y },
-        next,
-        this.machine.power,
-      ),
+      contact,
+      power: optimalPowerCenter(contact, next, this.machine.power),
     });
     this.cameraRig.setFoot(next.foot === 'L' ? 'left' : 'right');
     this.kickerActor.setKicker(next, this.ballStart);

@@ -40,6 +40,12 @@
     "score": "{home} - {away}",
     "aim": "Apuntar",
     "contact": "Contacto",
+    "points": "{n} pts",
+    "challenge": "DESAFÍO",
+    "distanceLabel": "DISTANCIA",
+    "meters": "{n} m",
+    "windLabel": "VIENTO",
+    "windValue": "{n} m/s",
     "power": "Potencia",
     "timing": "Timing",
     "wind": "Viento",
@@ -51,6 +57,7 @@
     "ghostAim": "STICK-I",
     "ghostContact": "STICK-D",
     "ghostShot": "DISPARO",
+    "ghostPlayer": "JUGADOR",
     "ghostType": "Tipo"
   },
   "result": {
@@ -64,7 +71,8 @@
     "levelComplete": "¡Nivel superado!",
     "levelFailed": "Sin intentos",
     "starsEarned": "Estrellas: {n}/3",
-    "coinsEarned": "+{n} monedas"
+    "coinsEarned": "+{n} monedas",
+    "score": "Puntaje {n}"
   },
   "shot": {
     "curva": "Curva",
@@ -111,6 +119,7 @@
     "post": {
       "goalPerfect": "Potencia perfecta. Esa misma en tu consola.",
       "goal": "¡Adentro! Afina la potencia para la doble estrella.",
+      "goalPost": "¡Del palo y adentro! Con un poco de suerte, pero entró.",
       "saved": "Bien pegada, pero al medio. Búscale el palo lejano.",
       "post": "Por un pelo. Córrele la mira un poquito hacia adentro.",
       "wall": "La barrera la tapó. Dale más altura o rodéala con comba.",

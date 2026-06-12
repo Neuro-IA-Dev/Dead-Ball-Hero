@@ -19,6 +19,10 @@ export class Flight {
   event: ShotEvent | null = null;
   cross: CrossInfo | undefined;
   done = false;
+  /** El balón rebotó en un tubo del arco durante el vuelo. */
+  hitPost = false;
+  /** Callback al rebotar en poste/travesaño (SFX/feedback). */
+  onBounce?: (kind: 'post' | 'crossbar') => void;
 
   private collider: ShotCollider;
   private acc = 0;
@@ -46,6 +50,10 @@ export class Flight {
       this.elapsed += FIXED_TIMESTEP;
 
       const r = this.collider.update(this.state, FIXED_TIMESTEP);
+      if (r.bounce) {
+        this.hitPost = true;
+        this.onBounce?.(r.bounce);
+      }
       if (r.event) {
         this.finish(r.event, r.cross);
         return;

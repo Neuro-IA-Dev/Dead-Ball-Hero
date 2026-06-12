@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /**
  * Contexto de render — tarea 1.2, mejorado con post-procesado (bloom) para el
@@ -21,13 +22,22 @@ export interface RenderContext {
 
 export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 0.82;
 
   const scene = new THREE.Scene();
+
+  // Iluminación basada en entorno (IBL): un PMREM neutro da gradientes suaves a
+  // todos los MeshStandard → los jugadores ganan volumen y dejan de verse planos
+  // ("muñecos"). Intensidad baja para no romper el clima nocturno.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.18;
+  pmrem.dispose();
 
   // Cámara "broadcast" detrás del punto de tiro (mira hacia el arco en z=0).
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
@@ -37,9 +47,9 @@ export function createRenderContext(canvas: HTMLCanvasElement): RenderContext {
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.62, // strength
-    0.5, // radius
-    0.82, // threshold: solo focos, red, retícula y balón emisivo florecen
+    0.16, // strength
+    0.28, // radius
+    0.94, // threshold: bloom solo en focos realmente intensos
   );
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
